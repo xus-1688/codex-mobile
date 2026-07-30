@@ -718,13 +718,13 @@
                   v-if="showCopyResponseButton(message)"
                   type="button"
                   class="message-copy-button"
-                  :data-copied="copiedResponseAnchorId === message.id"
-                  :aria-label="copiedResponseAnchorId === message.id ? 'Response copied' : 'Copy response'"
-                  :title="copiedResponseAnchorId === message.id ? 'Response copied' : 'Copy response'"
+                  :data-copy-state="copyResponseState(message.id)"
+                  :aria-label="copyResponseAriaLabel(message.id)"
+                  :title="copyResponseAriaLabel(message.id)"
                   @click="copyResponse(message.id)"
                 >
                   <IconTablerCopy class="icon-svg message-copy-icon" />
-                  <span class="message-copy-label">{{ copiedResponseAnchorId === message.id ? 'Copied' : 'Copy' }}</span>
+                  <span class="message-copy-label" aria-live="polite">{{ copyResponseLabel(message.id) }}</span>
                 </button>
               </div>
             </article>
@@ -922,7 +922,7 @@ import type { UiFileChange, UiLiveOverlay, UiMessage, UiPlanStep, UiServerReques
 import { updateThreadFileChanges } from '../../api/codexGateway'
 import { useFeedbackDiagnostics } from '../../composables/useFeedbackDiagnostics'
 import { useMobile } from '../../composables/useMobile'
-import { copyTextToClipboard, copyTextWithSelectionFallback } from '../../utils/clipboard'
+import { copyTextToClipboard } from '../../utils/clipboard'
 
 import IconTablerArrowBackUp from '../icons/IconTablerArrowBackUp.vue'
 import IconTablerArrowUp from '../icons/IconTablerArrowUp.vue'
@@ -1329,6 +1329,7 @@ const conversationListRef = ref<HTMLElement | null>(null)
 const bottomAnchorRef = ref<HTMLElement | null>(null)
 const modalImageUrl = ref('')
 const copiedResponseAnchorId = ref('')
+const failedCopyResponseAnchorId = ref('')
 const fileChangeActionState = ref<Record<string, 'idle' | 'undoing' | 'redoing' | 'undone' | 'redone'>>({})
 const fileChangeActionError = ref<Record<string, string>>({})
 const fileChangeRedoPatchIds = ref<Record<string, string[]>>({})
@@ -1871,6 +1872,34 @@ function showCopyResponseButton(message: UiMessage): boolean {
   return typeof copyableResponseContentByAnchorId.value[message.id] === 'string'
 }
 
+function copyResponseState(anchorMessageId: string): 'idle' | 'copied' | 'failed' {
+  if (copiedResponseAnchorId.value === anchorMessageId) return 'copied'
+  if (failedCopyResponseAnchorId.value === anchorMessageId) return 'failed'
+  return 'idle'
+}
+
+function copyResponseLabel(anchorMessageId: string): string {
+  switch (copyResponseState(anchorMessageId)) {
+    case 'copied':
+      return 'Copied'
+    case 'failed':
+      return 'Copy failed'
+    default:
+      return 'Copy'
+  }
+}
+
+function copyResponseAriaLabel(anchorMessageId: string): string {
+  switch (copyResponseState(anchorMessageId)) {
+    case 'copied':
+      return 'Response copied'
+    case 'failed':
+      return 'Copy failed. Tap to retry'
+    default:
+      return 'Copy response'
+  }
+}
+
 function showForkResponseButton(message: UiMessage): boolean {
   return typeof forkableTurnIndexByAnchorId.value[message.id] === 'number'
 }
@@ -2345,27 +2374,30 @@ async function copyResponse(anchorMessageId: string): Promise<void> {
   const content = copyableResponseContentByAnchorId.value[anchorMessageId] ?? ''
   if (!content) return
 
-  let copied = false
   try {
     await copyTextToClipboard(content)
-    copied = true
   } catch {
-    copied = false
+    copiedResponseAnchorId.value = ''
+    failedCopyResponseAnchorId.value = anchorMessageId
+    scheduleCopyResponseStatusReset(anchorMessageId)
+    return
   }
 
-  if (!copied) {
-    copied = copyTextWithSelectionFallback(content)
-  }
-
-  if (!copied) return
-
+  failedCopyResponseAnchorId.value = ''
   copiedResponseAnchorId.value = anchorMessageId
+  scheduleCopyResponseStatusReset(anchorMessageId)
+}
+
+function scheduleCopyResponseStatusReset(anchorMessageId: string): void {
   if (copiedMessageResetTimer) {
     clearTimeout(copiedMessageResetTimer)
   }
   copiedMessageResetTimer = setTimeout(() => {
     if (copiedResponseAnchorId.value === anchorMessageId) {
       copiedResponseAnchorId.value = ''
+    }
+    if (failedCopyResponseAnchorId.value === anchorMessageId) {
+      failedCopyResponseAnchorId.value = ''
     }
     copiedMessageResetTimer = null
   }, 1800)
@@ -4672,7 +4704,8 @@ onBeforeUnmount(() => {
   @apply mt-1 self-start flex items-center gap-1 opacity-[0.01] transition-opacity duration-200;
 }
 
-.message-row:hover .message-toolbar {
+.message-row:hover .message-toolbar,
+.message-row:focus-within .message-toolbar {
   @apply opacity-100;
 }
 
@@ -4685,8 +4718,23 @@ onBeforeUnmount(() => {
 }
 
 
-.message-copy-button[data-copied='true'] {
+.message-toolbar .message-copy-button[data-copy-state='copied'] {
   @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+}
+
+.message-toolbar .message-copy-button[data-copy-state='failed'] {
+  @apply border-rose-200 bg-rose-50 text-rose-700;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .message-toolbar {
+    @apply opacity-100;
+  }
+
+  .message-copy-button {
+    min-height: 28px;
+    padding-inline: 0.5rem;
+  }
 }
 
 .message-edit-button {
