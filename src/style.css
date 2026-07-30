@@ -1876,6 +1876,228 @@
   @apply bg-zinc-900 text-zinc-200;
 }
 
+.local-session-import-backdrop {
+  @apply fixed inset-0 z-[110] flex items-center justify-center bg-black/40 px-4 py-6;
+}
+
+.local-session-import-dialog {
+  @apply flex max-h-[min(780px,calc(100vh-48px))] w-full max-w-2xl flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-2xl;
+}
+
+.local-session-import-header {
+  @apply flex shrink-0 items-start justify-between gap-4 border-b border-zinc-200 px-5 py-4;
+}
+
+.local-session-import-heading {
+  @apply min-w-0;
+}
+
+.local-session-import-heading h2 {
+  @apply m-0 text-base font-semibold text-zinc-900;
+}
+
+.local-session-import-heading p {
+  @apply mt-1 mb-0 text-xs text-zinc-500;
+}
+
+.local-session-import-close {
+  @apply flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent text-zinc-500 transition hover:border-zinc-200 hover:bg-zinc-50 hover:text-zinc-800;
+}
+
+.local-session-import-close svg {
+  @apply h-4 w-4;
+}
+
+.local-session-import-loading,
+.local-session-import-empty {
+  @apply flex min-h-56 items-center justify-center gap-2 px-5 py-10 text-sm text-zinc-500;
+}
+
+.local-session-import-spinner {
+  @apply h-4 w-4;
+  animation: local-session-import-spin 0.8s linear infinite;
+}
+
+@keyframes local-session-import-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.local-session-import-error {
+  @apply m-5 flex min-h-32 flex-col items-center justify-center gap-3 rounded-md border border-rose-200 bg-rose-50 px-4 py-6 text-center text-sm text-rose-700;
+}
+
+.local-session-import-error p {
+  @apply m-0;
+}
+
+.local-session-import-error button {
+  @apply rounded-md border border-rose-300 bg-white px-3 py-1.5 text-sm font-medium text-rose-700 transition hover:bg-rose-100;
+}
+
+.local-session-import-search {
+  @apply mx-5 mt-4 flex shrink-0 items-center gap-2 rounded-md border border-zinc-200 bg-white px-3 focus-within:border-zinc-400;
+}
+
+.local-session-import-search svg {
+  @apply h-4 w-4 shrink-0 text-zinc-400;
+}
+
+.local-session-import-search input {
+  @apply h-10 min-w-0 flex-1 border-0 bg-transparent text-sm text-zinc-900 outline-none placeholder:text-zinc-400;
+}
+
+.local-session-import-toolbar {
+  @apply flex shrink-0 items-center justify-between gap-3 px-5 py-3 text-xs text-zinc-500;
+}
+
+.local-session-import-toolbar label {
+  @apply flex cursor-pointer items-center gap-2 font-medium text-zinc-700;
+}
+
+.local-session-import-toolbar input,
+.local-session-import-row > input {
+  @apply h-4 w-4 shrink-0 accent-zinc-900;
+}
+
+.local-session-import-list {
+  @apply mx-5 min-h-0 flex-1 overflow-y-auto rounded-md border border-zinc-200;
+}
+
+.local-session-import-row {
+  @apply grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 border-b border-zinc-100 px-3 py-3 transition last:border-b-0 hover:bg-zinc-50;
+}
+
+.local-session-import-row > input {
+  @apply mt-0.5;
+}
+
+.local-session-import-row-copy {
+  @apply flex min-w-0 flex-col gap-1;
+}
+
+.local-session-import-row-title {
+  @apply overflow-hidden text-ellipsis whitespace-nowrap text-sm font-medium text-zinc-900;
+}
+
+.local-session-import-row-meta {
+  @apply flex min-w-0 items-center gap-2 text-xs text-zinc-500;
+}
+
+.local-session-import-row-meta span {
+  @apply min-w-0 overflow-hidden text-ellipsis whitespace-nowrap;
+}
+
+.local-session-import-row-meta time {
+  @apply shrink-0;
+}
+
+.local-session-import-row-path {
+  @apply overflow-hidden text-ellipsis whitespace-nowrap text-xs text-zinc-400;
+}
+
+.local-session-import-status {
+  @apply rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600;
+}
+
+.local-session-import-more {
+  @apply w-full border-t border-zinc-100 bg-white px-3 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900;
+}
+
+.local-session-import-actions {
+  @apply mt-4 flex shrink-0 items-center justify-end gap-2 border-t border-zinc-200 px-5 py-4;
+}
+
+.local-session-import-cancel,
+.local-session-import-confirm {
+  @apply rounded-md border px-3 py-2 text-sm font-medium transition;
+}
+
+.local-session-import-cancel {
+  @apply border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50;
+}
+
+.local-session-import-confirm {
+  @apply border-zinc-900 bg-zinc-900 text-white hover:bg-zinc-800;
+}
+
+:root.dark .local-session-import-dialog,
+:root.dark .local-session-import-search,
+:root.dark .local-session-import-list,
+:root.dark .local-session-import-more,
+:root.dark .local-session-import-cancel {
+  @apply border-zinc-700 bg-zinc-900;
+}
+
+:root.dark .local-session-import-header,
+:root.dark .local-session-import-actions,
+:root.dark .local-session-import-row,
+:root.dark .local-session-import-more {
+  @apply border-zinc-800;
+}
+
+:root.dark .local-session-import-heading h2,
+:root.dark .local-session-import-row-title,
+:root.dark .local-session-import-search input {
+  @apply text-zinc-100;
+}
+
+:root.dark .local-session-import-heading p,
+:root.dark .local-session-import-toolbar,
+:root.dark .local-session-import-row-meta,
+:root.dark .local-session-import-loading,
+:root.dark .local-session-import-empty {
+  @apply text-zinc-400;
+}
+
+:root.dark .local-session-import-toolbar label,
+:root.dark .local-session-import-cancel,
+:root.dark .local-session-import-more {
+  @apply text-zinc-200;
+}
+
+:root.dark .local-session-import-row:hover,
+:root.dark .local-session-import-more:hover,
+:root.dark .local-session-import-cancel:hover,
+:root.dark .local-session-import-close:hover {
+  @apply bg-zinc-800;
+}
+
+:root.dark .local-session-import-status {
+  @apply bg-zinc-800 text-zinc-300;
+}
+
+:root.dark .local-session-import-confirm {
+  @apply border-zinc-100 bg-zinc-100 text-zinc-900 hover:bg-white;
+}
+
+:root.dark .local-session-import-error {
+  @apply border-rose-900 bg-rose-950/40 text-rose-200;
+}
+
+@media (max-width: 640px) {
+  .local-session-import-backdrop {
+    @apply items-end px-0 py-0;
+  }
+
+  .local-session-import-dialog {
+    @apply max-h-[92vh] max-w-none rounded-b-none border-x-0 border-b-0;
+  }
+
+  .local-session-import-search input {
+    font-size: 16px;
+  }
+
+  .local-session-import-row-meta {
+    @apply items-start flex-col gap-0.5;
+  }
+
+  .local-session-import-row-meta time {
+    @apply shrink;
+  }
+}
+
 @media (max-width: 768px) {
   .thread-composer-input,
   .composer-dropdown-search-input,

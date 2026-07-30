@@ -12,11 +12,11 @@
             class="sidebar-thread-controls-host"
             :is-sidebar-collapsed="isSidebarCollapsed"
             :show-new-thread-button="true"
-            :show-sync-button="true"
-            :is-syncing-threads="isSyncingThreads"
+            :show-local-session-import-button="true"
+            :is-loading-local-sessions="isLoadingLocalSessions"
             @toggle-sidebar="setSidebarCollapsed(!isSidebarCollapsed)"
             @start-new-thread="onStartNewThreadFromToolbar"
-            @sync-threads="onSyncThreads"
+            @load-local-sessions="onOpenLocalSessionImport"
           >
             <button
               class="sidebar-search-toggle"
@@ -531,11 +531,11 @@
               class="sidebar-thread-controls-header-host"
               :is-sidebar-collapsed="isSidebarCollapsed"
               :show-new-thread-button="true"
-              :show-sync-button="true"
-              :is-syncing-threads="isSyncingThreads"
+              :show-local-session-import-button="true"
+              :is-loading-local-sessions="isLoadingLocalSessions"
               @toggle-sidebar="setSidebarCollapsed(!isSidebarCollapsed)"
               @start-new-thread="onStartNewThreadFromToolbar"
-              @sync-threads="onSyncThreads"
+              @load-local-sessions="onOpenLocalSessionImport"
             />
             <span v-if="isSkillsRoute" class="skills-route-header-icon" aria-hidden="true">
               <IconTablerBolt />
@@ -1064,6 +1064,16 @@
       </section>
     </template>
   </DesktopLayout>
+  <LocalSessionImportDialog
+    v-if="isLocalSessionImportOpen"
+    :threads="localSessionCandidates"
+    :selected-thread-ids="importedLocalThreadIds"
+    :is-loading="isLoadingLocalSessions"
+    :error="localSessionImportError"
+    @close="onCloseLocalSessionImport"
+    @retry="onLoadLocalSessionCandidates"
+    @confirm="onConfirmLocalSessionImport"
+  />
   <div v-if="projectZipExportStatus.phase !== 'idle'" class="project-zip-modal-backdrop" role="presentation">
     <div class="project-zip-modal" role="dialog" aria-modal="true" :aria-label="t('Export Project')" @click.stop>
       <div class="project-zip-modal-header">
@@ -1183,6 +1193,7 @@ import DesktopLayout from './components/layout/DesktopLayout.vue'
 import SidebarThreadTree from './components/sidebar/SidebarThreadTree.vue'
 import ContentHeader from './components/content/ContentHeader.vue'
 import ThreadComposer from './components/content/ThreadComposer.vue'
+import LocalSessionImportDialog from './components/content/LocalSessionImportDialog.vue'
 import ThreadPendingRequestPanel from './components/content/ThreadPendingRequestPanel.vue'
 import QueuedMessages from './components/content/QueuedMessages.vue'
 import RateLimitStatus from './components/content/RateLimitStatus.vue'
@@ -1235,7 +1246,7 @@ import {
   searchThreads,
   switchAccount,
 } from './api/codexGateway'
-import type { ReasoningEffort, SpeedMode, ThreadPermissionMode, UiAccountEntry, UiRateLimitWindow, UiServerRequest, UiServerRequestReply, UiThreadAutomation, UiThreadTokenUsage } from './types/codex'
+import type { ReasoningEffort, SpeedMode, ThreadPermissionMode, UiAccountEntry, UiRateLimitWindow, UiServerRequest, UiServerRequestReply, UiThread, UiThreadAutomation, UiThreadTokenUsage } from './types/codex'
 import type { ComposerDraftPayload, ThreadComposerExposed } from './components/content/ThreadComposer.vue'
 import type { GitCommitFileChange, GitCommitOption, LocalDirectoryEntry, TelegramStatus, ThreadTerminalQuickCommand, WorktreeBranchOption } from './api/codexGateway'
 import { getFreeModeStatus, setFreeMode, setFreeModeCustomKey, setCustomProvider } from './api/codexGateway'
@@ -1443,13 +1454,15 @@ const {
   isLoadingMessages,
   isLoadingOlderMessages,
   isSendingMessage,
-  isSyncingThreads,
+  isLoadingLocalSessions,
   isInterruptingTurn,
   isSelectedThreadInterruptPending,
   isUpdatingSpeedMode,
   error: desktopError,
   refreshAll,
-  syncThreadsFromServer,
+  importedLocalThreadIds,
+  loadLocalSessionsForImport,
+  setImportedLocalThreadIds,
   refreshSkills,
   selectThread,
   ensureThreadMessagesLoaded,
@@ -1687,6 +1700,9 @@ const projectSetupBaseDir = ref('')
 const projectNameDraft = ref('')
 const githubCloneUrlDraft = ref('')
 const isProjectImporting = ref(false)
+const isLocalSessionImportOpen = ref(false)
+const localSessionCandidates = ref<UiThread[]>([])
+const localSessionImportError = ref('')
 const projectSetupError = ref('')
 const isProjectSetupSubmitting = ref(false)
 const projectSetupPrimaryInputRef = ref<HTMLInputElement | null>(null)
@@ -4172,11 +4188,27 @@ function onReorderQueuedMessage(payload: { draggedId: string; targetId: string }
   reorderQueuedMessage(payload.draggedId, payload.targetId)
 }
 
-async function onSyncThreads(): Promise<void> {
-  const synced = await syncThreadsFromServer()
-  if (synced) {
-    await syncThreadSelectionWithRoute()
+async function onOpenLocalSessionImport(): Promise<void> {
+  isLocalSessionImportOpen.value = true
+  await onLoadLocalSessionCandidates()
+}
+
+async function onLoadLocalSessionCandidates(): Promise<void> {
+  localSessionImportError.value = ''
+  try {
+    localSessionCandidates.value = await loadLocalSessionsForImport()
+  } catch (error) {
+    localSessionImportError.value = error instanceof Error ? error.message : t('Failed to load local sessions')
   }
+}
+
+function onCloseLocalSessionImport(): void {
+  isLocalSessionImportOpen.value = false
+}
+
+function onConfirmLocalSessionImport(threadIds: string[]): void {
+  setImportedLocalThreadIds(threadIds)
+  isLocalSessionImportOpen.value = false
 }
 
 function onSelectModel(modelId: string): void {

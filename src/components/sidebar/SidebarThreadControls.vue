@@ -14,17 +14,17 @@
     <slot />
 
     <button
-      v-if="showSyncButton"
+      v-if="showLocalSessionImportButton"
       class="sidebar-thread-controls-button"
       type="button"
-      :aria-label="isSyncingThreads ? t('Syncing sessions...') : t('Sync sessions')"
-      :title="isSyncingThreads ? t('Syncing sessions...') : t('Sync sessions')"
-      :disabled="isSyncingThreads"
-      @click="$emit('sync-threads')"
+      :aria-label="isLoadingLocalSessions ? t('Loading local sessions...') : t('Import local sessions')"
+      :title="isLoadingLocalSessions ? t('Loading local sessions...') : t('Import local sessions')"
+      :disabled="isLoadingLocalSessions"
+      @click="$emit('load-local-sessions')"
     >
       <IconTablerRefresh
         class="sidebar-thread-controls-icon"
-        :class="{ 'sidebar-thread-controls-icon--spinning': isSyncingThreads }"
+        :class="{ 'sidebar-thread-controls-icon--spinning': isLoadingLocalSessions }"
       />
     </button>
 
@@ -51,14 +51,14 @@ import IconTablerRefresh from '../icons/IconTablerRefresh.vue'
 defineProps<{
   isSidebarCollapsed: boolean
   showNewThreadButton?: boolean
-  showSyncButton?: boolean
-  isSyncingThreads?: boolean
+  showLocalSessionImportButton?: boolean
+  isLoadingLocalSessions?: boolean
 }>()
 
 defineEmits<{
   'toggle-sidebar': []
   'start-new-thread': []
-  'sync-threads': []
+  'load-local-sessions': []
 }>()
 
 const { t } = useUiLanguage()

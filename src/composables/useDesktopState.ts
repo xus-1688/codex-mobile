@@ -83,6 +83,7 @@ const PROJECT_ORDER_STORAGE_KEY = 'codex-web-local.project-order.v1'
 const PROJECT_DISPLAY_NAME_STORAGE_KEY = 'codex-web-local.project-display-name.v1'
 const COLLABORATION_MODE_STORAGE_KEY = 'codex-web-local.collaboration-mode-by-context.v1'
 const THREAD_PERMISSION_MODE_STORAGE_KEY = 'codex-web-local.thread-permission-mode-by-context.v1'
+const IMPORTED_LOCAL_THREAD_IDS_STORAGE_KEY = 'codex-web-local.imported-local-thread-ids.v1'
 const LEGACY_COLLABORATION_MODE_STORAGE_KEY = 'codex-web-local.collaboration-mode.v1'
 const NEW_THREAD_COLLABORATION_MODE_CONTEXT = '__new-thread__'
 const NEW_THREAD_PROVIDER_MODEL_CONTEXT_PREFIX = '__new-thread-provider__::'
@@ -166,6 +167,29 @@ export function isThreadUnreadByLastRead(
 
 function normalizeCollaborationMode(value: unknown): CollaborationModeKind {
   return value === 'plan' ? 'plan' : 'default'
+}
+
+function loadImportedLocalThreadIds(): string[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const parsed = JSON.parse(window.localStorage.getItem(IMPORTED_LOCAL_THREAD_IDS_STORAGE_KEY) ?? '[]') as unknown
+    if (!Array.isArray(parsed)) return []
+    return Array.from(new Set(parsed
+      .filter((value): value is string => typeof value === 'string')
+      .map((value) => value.trim())
+      .filter(Boolean)))
+  } catch {
+    return []
+  }
+}
+
+function saveImportedLocalThreadIds(threadIds: readonly string[]): void {
+  if (typeof window === 'undefined') return
+  if (threadIds.length === 0) {
+    window.localStorage.removeItem(IMPORTED_LOCAL_THREAD_IDS_STORAGE_KEY)
+    return
+  }
+  window.localStorage.setItem(IMPORTED_LOCAL_THREAD_IDS_STORAGE_KEY, JSON.stringify(threadIds))
 }
 
 function normalizeThreadPermissionMode(value: unknown): ThreadPermissionMode {
@@ -1440,6 +1464,7 @@ function isProjectlessGroup(group: UiProjectGroup): boolean {
 export function filterGroupsByWorkspaceRoots(
   groups: UiProjectGroup[],
   rootsState: WorkspaceRootsState | null,
+  importedThreadIds: ReadonlySet<string> = new Set(),
 ): UiProjectGroup[] {
   const duplicateLeafNames = collectDuplicateProjectLeafNames(groups, rootsState)
   const disambiguatedGroups = disambiguateProjectGroupsByCwd(groups, rootsState)
@@ -1449,7 +1474,11 @@ export function filterGroupsByWorkspaceRoots(
   for (const projectName of getWorkspaceProjectOrderNames(rootsState, duplicateLeafNames)) {
     allowedProjectNames.add(projectName)
   }
-  const filteredGroups = groupsWithWorkspaceRoots.filter((group) => allowedProjectNames.has(group.projectName) || isProjectlessGroup(group))
+  const filteredGroups = groupsWithWorkspaceRoots.flatMap((group) => {
+    if (allowedProjectNames.has(group.projectName) || isProjectlessGroup(group)) return [group]
+    const importedThreads = group.threads.filter((thread) => importedThreadIds.has(thread.id))
+    return importedThreads.length > 0 ? [{ ...group, threads: importedThreads }] : []
+  })
   return orderGroupsByWorkspaceProjectOrder(filteredGroups, rootsState, duplicateLeafNames)
 }
 
@@ -1534,6 +1563,7 @@ export function useDesktopState() {
   const threadModelProviderByThreadId = ref<Record<string, string>>({})
 
   const threadTitleById = ref<Record<string, string>>({})
+  const importedLocalThreadIds = ref<string[]>(loadImportedLocalThreadIds())
 
   const installedSkills = ref<SkillInfo[]>([])
   const accountRateLimitSnapshots = ref<UiRateLimitSnapshot[]>([])
@@ -1542,7 +1572,7 @@ export function useDesktopState() {
   const isLoadingMessages = ref(false)
   const isThreadListFullyLoaded = ref(false)
   const isSendingMessage = ref(false)
-  const isSyncingThreads = ref(false)
+  const isLoadingLocalSessions = ref(false)
   const isInterruptingTurn = ref(false)
   const isUpdatingSpeedMode = ref(false)
   const isRollingBack = ref(false)
@@ -1603,6 +1633,7 @@ export function useDesktopState() {
   let isLoadingRemainingThreadPages = false
   let hasLoadedAllThreadPages = false
   let loadedThreadListGroups: UiProjectGroup[] = []
+  let localSessionCandidateGroups: UiProjectGroup[] = []
   let loadedThreadListRootsState: WorkspaceRootsState | null = null
   let hasHydratedWorkspaceRootsState = false
   let activeReasoningItemId = ''
@@ -4238,27 +4269,15 @@ export function useDesktopState() {
     }
   }
 
-  function filterGroupsByWorkspaceRoots(
+  function filterThreadGroupsForDisplay(
     groups: UiProjectGroup[],
     rootsState: WorkspaceRootsState | null,
   ): UiProjectGroup[] {
-    const duplicateLeafNames = collectDuplicateProjectLeafNames(groups, rootsState)
-    const disambiguatedGroups = disambiguateProjectGroupsByCwd(groups, rootsState)
-    const groupsWithWorkspaceRoots = addWorkspaceRootPlaceholderGroups(disambiguatedGroups, rootsState, duplicateLeafNames)
-    if (!rootsState || (rootsState.order.length === 0 && (rootsState.remoteProjects ?? []).length === 0)) return groupsWithWorkspaceRoots
-    const allowedProjectNames = new Set<string>()
-    for (const projectName of getWorkspaceProjectOrderNames(rootsState, duplicateLeafNames)) {
-      allowedProjectNames.add(projectName)
-    }
-    const filteredGroups = groupsWithWorkspaceRoots.filter((group) => {
-      if (allowedProjectNames.has(group.projectName)) return true
-      return isProjectlessGroup(group)
-    })
-    return orderGroupsByWorkspaceProjectOrder(filteredGroups, rootsState, duplicateLeafNames)
+    return filterGroupsByWorkspaceRoots(groups, rootsState, new Set(importedLocalThreadIds.value))
   }
 
   function applyThreadGroups(groups: UiProjectGroup[], rootsState: WorkspaceRootsState | null): void {
-    const visibleGroups = filterGroupsByWorkspaceRoots(groups, rootsState)
+    const visibleGroups = filterThreadGroupsForDisplay(groups, rootsState)
     const hasWorkspaceRootsState = Boolean(
       rootsState && (rootsState.order.length > 0 || rootsState.projectOrder.length > 0 || (rootsState.remoteProjects ?? []).length > 0),
     )
@@ -4641,27 +4660,65 @@ export function useDesktopState() {
     await loadPromise
   }
 
-  async function syncThreadsFromServer(): Promise<boolean> {
-    if (isSyncingThreads.value) return false
-    isSyncingThreads.value = true
+  async function loadLocalSessionsForImport(): Promise<UiThread[]> {
+    if (isLoadingLocalSessions.value) return []
+    isLoadingLocalSessions.value = true
     error.value = ''
     codexCliMissingError.value = ''
 
     try {
-      await loadThreads({ force: true, allPages: true })
-      const threadId = selectedThreadId.value.trim()
-      if (threadId) {
-        await loadMessages(threadId, { force: true })
+      if (loadThreadsPromise) {
+        await loadThreadsPromise
       }
-      return true
+      threadListLoadGeneration += 1
+      if (threadListBackgroundTimer !== null && typeof window !== 'undefined') {
+        window.clearTimeout(threadListBackgroundTimer)
+        threadListBackgroundTimer = null
+      }
+
+      const [firstPage, rootsState] = await Promise.all([
+        getThreadGroupsPage(),
+        loadWorkspaceRootsStateForThreadList(),
+      ])
+      loadedThreadListRootsState = rootsState
+      let groups = firstPage.groups
+      let nextCursor = firstPage.nextCursor
+      const seenCursors = new Set<string>()
+      while (nextCursor && !seenCursors.has(nextCursor)) {
+        seenCursors.add(nextCursor)
+        const page = await getThreadGroupsPage(nextCursor, getBackgroundThreadListLimit())
+        groups = mergeThreadGroupPages(groups, page.groups)
+        nextCursor = page.nextCursor
+      }
+      localSessionCandidateGroups = groups
+      return flattenThreads(groups).sort(
+        (first, second) => Date.parse(second.updatedAtIso) - Date.parse(first.updatedAtIso),
+      )
     } catch (unknownError) {
-      error.value = unknownError instanceof Error ? unknownError.message : 'Failed to sync sessions'
+      error.value = unknownError instanceof Error ? unknownError.message : 'Failed to load local sessions'
       if (isCodexCliMissingError(unknownError)) {
         codexCliMissingError.value = CODEX_CLI_MISSING_MESSAGE
       }
-      return false
+      throw unknownError
     } finally {
-      isSyncingThreads.value = false
+      isLoadingLocalSessions.value = false
+    }
+  }
+
+  function setImportedLocalThreadIds(threadIds: readonly string[]): void {
+    const normalizedIds = Array.from(new Set(threadIds.map((threadId) => threadId.trim()).filter(Boolean)))
+    importedLocalThreadIds.value = normalizedIds
+    saveImportedLocalThreadIds(normalizedIds)
+    if (localSessionCandidateGroups.length > 0) {
+      loadedThreadListGroups = localSessionCandidateGroups
+      threadListNextCursor = null
+      hasLoadedAllThreadPages = true
+      isThreadListFullyLoaded.value = true
+      hasLoadedThreads.value = true
+      lastThreadListLoadAt = Date.now()
+    }
+    if (loadedThreadListGroups.length > 0) {
+      applyThreadGroups(loadedThreadListGroups, loadedThreadListRootsState)
     }
   }
 
@@ -5877,14 +5934,16 @@ export function useDesktopState() {
     isLoadingMessages,
     isLoadingOlderMessages,
     isSendingMessage,
-    isSyncingThreads,
+    isLoadingLocalSessions,
     isInterruptingTurn,
     isUpdatingSpeedMode,
     isRollingBack,
 
     error,
     refreshAll,
-    syncThreadsFromServer,
+    importedLocalThreadIds,
+    loadLocalSessionsForImport,
+    setImportedLocalThreadIds,
     refreshSkills,
     selectThread,
     loadMessages,

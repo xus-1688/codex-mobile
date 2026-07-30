@@ -660,10 +660,20 @@ describe('startup request deduplication', () => {
   })
 })
 
-describe('manual session sync', () => {
-  it('loads every thread page and force-refreshes the selected conversation', async () => {
-    installTestWindow({
-      'codex-web-local.selected-thread-id.v1': 'thread-a',
+describe('local session import', () => {
+  it('loads every local page without showing filtered sessions until they are imported', async () => {
+    installTestWindow()
+    gatewayMocks.getWorkspaceRootsState.mockResolvedValue({
+      order: [],
+      labels: {},
+      active: [],
+      projectOrder: ['remote-project'],
+      remoteProjects: [{
+        id: 'remote-project',
+        hostId: 'remote-ssh-discovered:sz-d0343',
+        remotePath: '/home/standard/project',
+        label: 'Remote project',
+      }],
     })
     gatewayMocks.getThreadGroupsPage.mockImplementation(async (cursor?: string) => {
       if (cursor === 'next-page') {
@@ -677,30 +687,30 @@ describe('manual session sync', () => {
         nextCursor: 'next-page',
       }
     })
-    gatewayMocks.getThreadDetail.mockResolvedValue({
-      model: 'gpt-5.4',
-      modelProvider: 'openai',
-      messages: [],
-      inProgress: false,
-      activeTurnId: '',
-      hasMoreOlder: false,
-      turnIndexByTurnId: {},
-    })
 
     const state = useDesktopState()
-    await expect(state.syncThreadsFromServer()).resolves.toBe(true)
+    const candidates = await state.loadLocalSessionsForImport()
 
     expect(gatewayMocks.getThreadGroupsPage).toHaveBeenCalledTimes(2)
     expect(gatewayMocks.getThreadGroupsPage).toHaveBeenNthCalledWith(2, 'next-page', 100)
+    expect(candidates.map((row) => row.id)).toEqual(['thread-a', 'thread-b'])
+    expect(state.projectGroups.value.flatMap((group) => group.threads)).toEqual([])
+    expect(gatewayMocks.getThreadDetail).not.toHaveBeenCalled()
+
+    state.setImportedLocalThreadIds(['thread-b'])
+
     expect(state.projectGroups.value.flatMap((group) => group.threads.map((row) => row.id))).toEqual([
-      'thread-a',
       'thread-b',
     ])
-    expect(gatewayMocks.getThreadDetail).toHaveBeenCalledWith('thread-a')
-    expect(state.isSyncingThreads.value).toBe(false)
+    expect(state.importedLocalThreadIds.value).toEqual(['thread-b'])
+    expect(window.localStorage.setItem).toHaveBeenCalledWith(
+      'codex-web-local.imported-local-thread-ids.v1',
+      '["thread-b"]',
+    )
+    expect(state.isLoadingLocalSessions.value).toBe(false)
   })
 
-  it('ignores an older background page that finishes after a manual sync', async () => {
+  it('ignores an older background page that finishes after loading import candidates', async () => {
     installTestWindow()
     const backgroundCallbacks: Array<() => void> = []
     vi.mocked(window.setTimeout).mockImplementation(((callback: TimerHandler) => {
@@ -732,16 +742,6 @@ describe('manual session sync', () => {
         nextCursor: null,
       }
     })
-    gatewayMocks.getThreadDetail.mockResolvedValue({
-      model: 'gpt-5.4',
-      modelProvider: 'openai',
-      messages: [],
-      inProgress: false,
-      activeTurnId: '',
-      hasMoreOlder: false,
-      turnIndexByTurnId: {},
-    })
-
     const state = useDesktopState()
     await state.refreshAll({ includeSelectedThreadMessages: false })
     expect(backgroundCallbacks.length).toBeGreaterThan(0)
@@ -749,13 +749,22 @@ describe('manual session sync', () => {
     await Promise.resolve()
     expect(gatewayMocks.getThreadGroupsPage).toHaveBeenCalledWith('old-page', 100)
 
-    await expect(state.syncThreadsFromServer()).resolves.toBe(true)
+    await expect(state.loadLocalSessionsForImport()).resolves.toEqual([
+      thread('thread-a', '/tmp/project'),
+      thread('thread-fresh', '/tmp/project'),
+    ])
     resolveOldPage({
       groups: [{ projectName: 'Project', threads: [thread('thread-stale', '/tmp/project')] }],
       nextCursor: null,
     })
     await Promise.resolve()
     await Promise.resolve()
+
+    expect(state.projectGroups.value.flatMap((group) => group.threads.map((row) => row.id))).toEqual([
+      'thread-a',
+    ])
+
+    state.setImportedLocalThreadIds(['thread-a', 'thread-fresh'])
 
     expect(state.projectGroups.value.flatMap((group) => group.threads.map((row) => row.id))).toEqual([
       'thread-a',
