@@ -8,6 +8,8 @@ const zhCN: Record<string, string> = {
   'English': 'English',
   'Simplified Chinese': '简体中文',
   'Search threads': '搜索线程',
+  'Sync sessions': '同步会话',
+  'Syncing sessions...': '正在同步会话...',
   'Filter threads...': '筛选线程...',
   'Clear search': '清除搜索',
   'Chats': '聊天',

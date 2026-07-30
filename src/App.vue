@@ -12,8 +12,11 @@
             class="sidebar-thread-controls-host"
             :is-sidebar-collapsed="isSidebarCollapsed"
             :show-new-thread-button="true"
+            :show-sync-button="true"
+            :is-syncing-threads="isSyncingThreads"
             @toggle-sidebar="setSidebarCollapsed(!isSidebarCollapsed)"
             @start-new-thread="onStartNewThreadFromToolbar"
+            @sync-threads="onSyncThreads"
           >
             <button
               class="sidebar-search-toggle"
@@ -528,8 +531,11 @@
               class="sidebar-thread-controls-header-host"
               :is-sidebar-collapsed="isSidebarCollapsed"
               :show-new-thread-button="true"
+              :show-sync-button="true"
+              :is-syncing-threads="isSyncingThreads"
               @toggle-sidebar="setSidebarCollapsed(!isSidebarCollapsed)"
               @start-new-thread="onStartNewThreadFromToolbar"
+              @sync-threads="onSyncThreads"
             />
             <span v-if="isSkillsRoute" class="skills-route-header-icon" aria-hidden="true">
               <IconTablerBolt />
@@ -1437,11 +1443,13 @@ const {
   isLoadingMessages,
   isLoadingOlderMessages,
   isSendingMessage,
+  isSyncingThreads,
   isInterruptingTurn,
   isSelectedThreadInterruptPending,
   isUpdatingSpeedMode,
   error: desktopError,
   refreshAll,
+  syncThreadsFromServer,
   refreshSkills,
   selectThread,
   ensureThreadMessagesLoaded,
@@ -4162,6 +4170,13 @@ function collapsePathSegments(rawSegments: readonly string[]): string[] {
 
 function onReorderQueuedMessage(payload: { draggedId: string; targetId: string }): void {
   reorderQueuedMessage(payload.draggedId, payload.targetId)
+}
+
+async function onSyncThreads(): Promise<void> {
+  const synced = await syncThreadsFromServer()
+  if (synced) {
+    await syncThreadSelectionWithRoute()
+  }
 }
 
 function onSelectModel(modelId: string): void {

@@ -660,6 +660,110 @@ describe('startup request deduplication', () => {
   })
 })
 
+describe('manual session sync', () => {
+  it('loads every thread page and force-refreshes the selected conversation', async () => {
+    installTestWindow({
+      'codex-web-local.selected-thread-id.v1': 'thread-a',
+    })
+    gatewayMocks.getThreadGroupsPage.mockImplementation(async (cursor?: string) => {
+      if (cursor === 'next-page') {
+        return {
+          groups: [{ projectName: 'Project', threads: [thread('thread-b', '/tmp/project')] }],
+          nextCursor: null,
+        }
+      }
+      return {
+        groups: [{ projectName: 'Project', threads: [thread('thread-a', '/tmp/project')] }],
+        nextCursor: 'next-page',
+      }
+    })
+    gatewayMocks.getThreadDetail.mockResolvedValue({
+      model: 'gpt-5.4',
+      modelProvider: 'openai',
+      messages: [],
+      inProgress: false,
+      activeTurnId: '',
+      hasMoreOlder: false,
+      turnIndexByTurnId: {},
+    })
+
+    const state = useDesktopState()
+    await expect(state.syncThreadsFromServer()).resolves.toBe(true)
+
+    expect(gatewayMocks.getThreadGroupsPage).toHaveBeenCalledTimes(2)
+    expect(gatewayMocks.getThreadGroupsPage).toHaveBeenNthCalledWith(2, 'next-page', 100)
+    expect(state.projectGroups.value.flatMap((group) => group.threads.map((row) => row.id))).toEqual([
+      'thread-a',
+      'thread-b',
+    ])
+    expect(gatewayMocks.getThreadDetail).toHaveBeenCalledWith('thread-a')
+    expect(state.isSyncingThreads.value).toBe(false)
+  })
+
+  it('ignores an older background page that finishes after a manual sync', async () => {
+    installTestWindow()
+    const backgroundCallbacks: Array<() => void> = []
+    vi.mocked(window.setTimeout).mockImplementation(((callback: TimerHandler) => {
+      if (typeof callback === 'function') {
+        backgroundCallbacks.push(() => callback())
+      }
+      return backgroundCallbacks.length
+    }) as typeof window.setTimeout)
+
+    let resolveOldPage!: (page: { groups: UiProjectGroup[]; nextCursor: string | null }) => void
+    const oldPage = new Promise<{ groups: UiProjectGroup[]; nextCursor: string | null }>((resolve) => {
+      resolveOldPage = resolve
+    })
+    let firstPageLoads = 0
+    gatewayMocks.getThreadGroupsPage.mockImplementation(async (cursor?: string) => {
+      if (cursor === 'old-page') return oldPage
+      firstPageLoads += 1
+      if (firstPageLoads === 1) {
+        return {
+          groups: [{ projectName: 'Project', threads: [thread('thread-a', '/tmp/project')] }],
+          nextCursor: 'old-page',
+        }
+      }
+      return {
+        groups: [{
+          projectName: 'Project',
+          threads: [thread('thread-a', '/tmp/project'), thread('thread-fresh', '/tmp/project')],
+        }],
+        nextCursor: null,
+      }
+    })
+    gatewayMocks.getThreadDetail.mockResolvedValue({
+      model: 'gpt-5.4',
+      modelProvider: 'openai',
+      messages: [],
+      inProgress: false,
+      activeTurnId: '',
+      hasMoreOlder: false,
+      turnIndexByTurnId: {},
+    })
+
+    const state = useDesktopState()
+    await state.refreshAll({ includeSelectedThreadMessages: false })
+    expect(backgroundCallbacks.length).toBeGreaterThan(0)
+    backgroundCallbacks[0]?.()
+    await Promise.resolve()
+    expect(gatewayMocks.getThreadGroupsPage).toHaveBeenCalledWith('old-page', 100)
+
+    await expect(state.syncThreadsFromServer()).resolves.toBe(true)
+    resolveOldPage({
+      groups: [{ projectName: 'Project', threads: [thread('thread-stale', '/tmp/project')] }],
+      nextCursor: null,
+    })
+    await Promise.resolve()
+    await Promise.resolve()
+
+    expect(state.projectGroups.value.flatMap((group) => group.threads.map((row) => row.id))).toEqual([
+      'thread-a',
+      'thread-fresh',
+    ])
+  })
+})
+
 describe('live error overlay', () => {
   it('shows the default thinking overlay while a selected thread is in progress without activity events', async () => {
     installTestWindow()

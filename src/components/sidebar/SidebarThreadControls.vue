@@ -14,6 +14,21 @@
     <slot />
 
     <button
+      v-if="showSyncButton"
+      class="sidebar-thread-controls-button"
+      type="button"
+      :aria-label="isSyncingThreads ? t('Syncing sessions...') : t('Sync sessions')"
+      :title="isSyncingThreads ? t('Syncing sessions...') : t('Sync sessions')"
+      :disabled="isSyncingThreads"
+      @click="$emit('sync-threads')"
+    >
+      <IconTablerRefresh
+        class="sidebar-thread-controls-icon"
+        :class="{ 'sidebar-thread-controls-icon--spinning': isSyncingThreads }"
+      />
+    </button>
+
+    <button
       v-if="showNewThreadButton"
       class="sidebar-thread-controls-button"
       type="button"
@@ -31,15 +46,19 @@ import { useUiLanguage } from '../../composables/useUiLanguage'
 import IconTablerFilePencil from '../icons/IconTablerFilePencil.vue'
 import IconTablerLayoutSidebar from '../icons/IconTablerLayoutSidebar.vue'
 import IconTablerLayoutSidebarFilled from '../icons/IconTablerLayoutSidebarFilled.vue'
+import IconTablerRefresh from '../icons/IconTablerRefresh.vue'
 
 defineProps<{
   isSidebarCollapsed: boolean
   showNewThreadButton?: boolean
+  showSyncButton?: boolean
+  isSyncingThreads?: boolean
 }>()
 
 defineEmits<{
   'toggle-sidebar': []
   'start-new-thread': []
+  'sync-threads': []
 }>()
 
 const { t } = useUiLanguage()
@@ -56,7 +75,21 @@ const { t } = useUiLanguage()
   @apply h-6.75 w-6.75 rounded-md border border-transparent bg-transparent text-zinc-600 flex items-center justify-center transition hover:border-zinc-200 hover:bg-zinc-50;
 }
 
+.sidebar-thread-controls-button:disabled {
+  @apply cursor-wait opacity-60;
+}
+
 .sidebar-thread-controls-icon {
   @apply w-4 h-4;
+}
+
+.sidebar-thread-controls-icon--spinning {
+  animation: sidebar-thread-controls-spin 0.8s linear infinite;
+}
+
+@keyframes sidebar-thread-controls-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
