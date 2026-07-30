@@ -8,6 +8,7 @@ import {
   canonicalizeThreadListResponseForRead,
   canonicalizeWorkspaceRootsStateForRead,
   ensureDefaultFreeModeStateForMissingAuthSync,
+  filterWorkspaceRootsStateByHiddenRemoteHosts,
   hasUsableCodexAuth,
   isEmptyThreadReadError,
   isThreadMaterializationPendingError,
@@ -188,6 +189,44 @@ describe('canonicalizeWorkspaceRootsStateForRead', () => {
       'remote-project-id': 'Remote Demo',
     })
     expect(state.remoteProjects[0]?.id).toBe('remote-project-id')
+  })
+})
+
+describe('filterWorkspaceRootsStateByHiddenRemoteHosts', () => {
+  it('removes hidden remote projects and their workspace references', () => {
+    const state = filterWorkspaceRootsStateByHiddenRemoteHosts({
+      order: ['hidden-project', 'C:\\workspace'],
+      labels: {
+        'hidden-project': 'Hidden project',
+        'C:\\workspace': 'Local project',
+      },
+      active: ['hidden-project', 'C:\\workspace'],
+      projectOrder: ['visible-project', 'hidden-project', 'C:\\workspace'],
+      remoteProjects: [{
+        id: 'hidden-project',
+        hostId: 'remote-ssh-discovered:sz-d0343',
+        remotePath: '/home/standard/project/hidden',
+        label: 'Hidden project',
+      }, {
+        id: 'visible-project',
+        hostId: 'remote-ssh-discovered:other-host',
+        remotePath: '/home/standard/project/visible',
+        label: 'Visible project',
+      }],
+    }, [' remote-ssh-discovered:sz-d0343 '])
+
+    expect(state).toEqual({
+      order: ['C:\\workspace'],
+      labels: { 'C:\\workspace': 'Local project' },
+      active: ['C:\\workspace'],
+      projectOrder: ['visible-project', 'C:\\workspace'],
+      remoteProjects: [{
+        id: 'visible-project',
+        hostId: 'remote-ssh-discovered:other-host',
+        remotePath: '/home/standard/project/visible',
+        label: 'Visible project',
+      }],
+    })
   })
 })
 

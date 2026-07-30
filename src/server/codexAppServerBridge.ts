@@ -5929,6 +5929,31 @@ export async function canonicalizeWorkspaceRootsStateForRead(
   return await canonicalizeWorkspaceRootsState(state, pathRealpath)
 }
 
+export function filterWorkspaceRootsStateByHiddenRemoteHosts(
+  state: WorkspaceRootsState,
+  hiddenRemoteHosts: readonly string[],
+): WorkspaceRootsState {
+  const hiddenHostIds = new Set(hiddenRemoteHosts.map((hostId) => hostId.trim()).filter(Boolean))
+  if (hiddenHostIds.size === 0) return state
+
+  const hiddenProjectIds = new Set(
+    state.remoteProjects
+      .filter((project) => hiddenHostIds.has(project.hostId))
+      .map((project) => project.id),
+  )
+  if (hiddenProjectIds.size === 0) return state
+
+  return {
+    order: state.order.filter((value) => !hiddenProjectIds.has(value)),
+    labels: Object.fromEntries(
+      Object.entries(state.labels).filter(([key]) => !hiddenProjectIds.has(key)),
+    ),
+    active: state.active.filter((value) => !hiddenProjectIds.has(value)),
+    projectOrder: state.projectOrder.filter((value) => !hiddenProjectIds.has(value)),
+    remoteProjects: state.remoteProjects.filter((project) => !hiddenProjectIds.has(project.id)),
+  }
+}
+
 async function canonicalizeThreadCwdRecord(
   value: unknown,
   canonicalizeCwd: (cwd: string) => Promise<string>,
@@ -5973,13 +5998,15 @@ async function readWorkspaceRootsState(): Promise<WorkspaceRootsState> {
     payload = {}
   }
 
-  return await canonicalizeWorkspaceRootsState({
+  const state = await canonicalizeWorkspaceRootsState({
     order: normalizeStringArray(payload['electron-saved-workspace-roots']),
     labels: normalizeStringRecord(payload['electron-workspace-root-labels']),
     active: normalizeStringArray(payload['active-workspace-roots']),
     projectOrder: normalizeStringArray(payload['project-order']),
     remoteProjects: normalizeRemoteProjects(payload['remote-projects']),
   })
+  const hiddenRemoteHosts = (process.env.CODEXUI_HIDDEN_REMOTE_HOSTS ?? '').split(',')
+  return filterWorkspaceRootsStateByHiddenRemoteHosts(state, hiddenRemoteHosts)
 }
 
 export async function writeWorkspaceRootsState(nextState: WorkspaceRootsState): Promise<void> {
