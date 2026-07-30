@@ -23,7 +23,7 @@ import {
   resolveAppServerRuntimeConfig,
 } from '../server/appServerRuntimeConfig.js'
 import { createServer as createApp } from '../server/httpServer.js'
-import { generatePassword } from '../server/password.js'
+import { resolvePassword } from './password.js'
 import { spawnSyncCommand } from '../utils/commandInvocation.js'
 
 const program = new Command().name('codexui').description('Web interface for Codex app-server')
@@ -250,21 +250,6 @@ function ensureCodexInstalled(): string | null {
     console.log('\nCodex CLI installed.\n')
   }
   return codexCommand
-}
-
-type PasswordResolution = {
-  password: string | undefined
-  generated: boolean
-}
-
-function resolvePassword(input: string | boolean): PasswordResolution {
-  if (input === false) {
-    return { password: undefined, generated: false }
-  }
-  if (typeof input === 'string') {
-    return { password: input, generated: false }
-  }
-  return { password: generatePassword(), generated: true }
 }
 
 function getGeneratedPasswordPath(): string {
@@ -495,7 +480,7 @@ async function addProjectOnly(projectPath: string): Promise<void> {
 
 async function startServer(options: {
   port: string
-  password: string | boolean
+  password: string | boolean | undefined
   tunnel: boolean
   open: boolean
   login: boolean
@@ -646,7 +631,7 @@ program
     projectPath: string | undefined,
     opts: {
       port: string
-      password: string | boolean
+      password: string | boolean | undefined
       tunnel: boolean
       open: boolean
       login: boolean

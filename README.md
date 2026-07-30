@@ -70,6 +70,13 @@ node -v   # 18+
 npx codexapp
 ```
 
+To reuse a fixed login password across restarts, set `CODEXUI_PASSWORD` in the launch environment. An explicit `--password` value takes precedence, while `--no-password` disables password protection.
+
+```powershell
+[Environment]::SetEnvironmentVariable('CODEXUI_PASSWORD', '<fixed-password>', 'User')
+codexapp
+```
+
 ### Termux (Android) 🤖
 ```bash
 pkg update && pkg upgrade -y
