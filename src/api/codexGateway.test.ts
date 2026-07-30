@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getAvailableModelIds, getThreadDetail, listDirectoryComposioConnectors, resumeThread, startThreadTurn } from './codexGateway'
+import { getAvailableModelIds, getThreadDetail, listDirectoryComposioConnectors, resumeThread, startThread, startThreadTurn } from './codexGateway'
 
 function mockRpcFetch(): { requests: Array<{ method: string, params: Record<string, unknown> }> } {
   const requests: Array<{ method: string, params: Record<string, unknown> }> = []
@@ -56,6 +56,54 @@ describe('startThreadTurn collaboration mode payloads', () => {
         model: 'gpt-5.4',
         reasoning_effort: 'medium',
         developer_instructions: null,
+      },
+    })
+  })
+})
+
+describe('thread permission payloads', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('leaves default turn permissions unchanged and explicitly enables full access', async () => {
+    const { requests } = mockRpcFetch()
+
+    await startThreadTurn('thread-1', 'default access')
+    await startThreadTurn('thread-1', 'full access', [], undefined, undefined, undefined, [], undefined, 'full-access')
+
+    expect(requests[0].params).not.toHaveProperty('approvalPolicy')
+    expect(requests[0].params).not.toHaveProperty('sandboxPolicy')
+    expect(requests[1].params.approvalPolicy).toBe('never')
+    expect(requests[1].params.sandboxPolicy).toEqual({ type: 'dangerFullAccess' })
+  })
+
+  it('starts a full-access thread with approvals disabled', async () => {
+    const requests: Array<{ method: string, params: Record<string, unknown> }> = []
+    vi.stubGlobal('fetch', vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const body = JSON.parse(String(init?.body)) as { method: string, params: Record<string, unknown> }
+      requests.push(body)
+      return new Response(JSON.stringify({
+        result: {
+          thread: { id: 'thread-full-access' },
+          model: 'gpt-5.4',
+          modelProvider: 'openai',
+        },
+      }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    }))
+
+    await startThread('/tmp/project', 'gpt-5.4', 'full-access')
+
+    expect(requests[0]).toMatchObject({
+      method: 'thread/start',
+      params: {
+        cwd: '/tmp/project',
+        model: 'gpt-5.4',
+        approvalPolicy: 'never',
+        sandbox: 'danger-full-access',
       },
     })
   })

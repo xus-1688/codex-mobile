@@ -436,6 +436,48 @@ describe('collaboration mode selection', () => {
   })
 })
 
+describe('thread permission mode selection', () => {
+  it('keeps full access scoped to each thread and restores it from localStorage', () => {
+    installTestWindow({
+      'codex-web-local.selected-thread-id.v1': 'thread-a',
+      'codex-web-local.thread-permission-mode-by-context.v1': JSON.stringify({
+        'thread-a': 'full-access',
+      }),
+    })
+
+    const state = useDesktopState()
+
+    expect(state.selectedThreadPermissionMode.value).toBe('full-access')
+
+    state.primeSelectedThread('thread-b')
+    expect(state.selectedThreadPermissionMode.value).toBe('default')
+
+    state.setSelectedThreadPermissionMode('full-access')
+    expect(JSON.parse(window.localStorage.getItem('codex-web-local.thread-permission-mode-by-context.v1') ?? '{}')).toEqual({
+      'thread-a': 'full-access',
+      'thread-b': 'full-access',
+    })
+
+    state.primeSelectedThread('thread-a')
+    expect(state.selectedThreadPermissionMode.value).toBe('full-access')
+  })
+
+  it('does not persist a new-chat permission choice as the next new-chat default', () => {
+    installTestWindow()
+    const state = useDesktopState()
+
+    state.primeSelectedThread('', { persist: false })
+    state.setSelectedThreadPermissionMode('full-access')
+
+    expect(state.selectedThreadPermissionMode.value).toBe('full-access')
+    expect(window.localStorage.getItem('codex-web-local.thread-permission-mode-by-context.v1')).toBe(null)
+
+    state.primeSelectedThread('thread-a')
+    state.primeSelectedThread('', { persist: false })
+    expect(state.selectedThreadPermissionMode.value).toBe('default')
+  })
+})
+
 describe('Codex CLI availability', () => {
   it('surfaces a chat runtime error when the app-server bridge cannot find Codex CLI', async () => {
     installTestWindow()
@@ -1032,7 +1074,7 @@ describe('provider model selection', () => {
     await state.refreshAll({ includeSelectedThreadMessages: false, awaitAncillaryRefreshes: true })
     await state.sendMessageToNewThread('hi', '/tmp/project')
 
-    expect(gatewayMocks.startThread).toHaveBeenCalledWith('/tmp/project', 'gpt-5.5')
+    expect(gatewayMocks.startThread).toHaveBeenCalledWith('/tmp/project', 'gpt-5.5', 'default')
     expect(gatewayMocks.startThreadTurn).toHaveBeenCalledWith(
       'codex-thread',
       'hi',
@@ -1041,6 +1083,7 @@ describe('provider model selection', () => {
       'medium',
       undefined,
       [],
+      'default',
       'default',
     )
     expect(state.readModelIdForThread('codex-thread')).toBe('gpt-5.5')

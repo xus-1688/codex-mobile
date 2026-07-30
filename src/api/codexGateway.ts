@@ -35,6 +35,7 @@ import type {
   UiAccountUnavailableReason,
   CollaborationModeKind,
   CollaborationModeOption,
+  ThreadPermissionMode,
   UiCreditsSnapshot,
   UiFileChange,
   UiMessage,
@@ -1668,7 +1669,11 @@ export type ForkedThread = {
   messages: UiMessage[]
 }
 
-export async function startThread(cwd?: string, model?: string): Promise<StartedThread> {
+export async function startThread(
+  cwd?: string,
+  model?: string,
+  permissionMode: ThreadPermissionMode = 'default',
+): Promise<StartedThread> {
   try {
     const params: Record<string, unknown> = {}
     if (typeof cwd === 'string' && cwd.trim().length > 0) {
@@ -1676,6 +1681,10 @@ export async function startThread(cwd?: string, model?: string): Promise<Started
     }
     if (typeof model === 'string' && model.trim().length > 0) {
       params.model = model.trim()
+    }
+    if (permissionMode === 'full-access') {
+      params.approvalPolicy = 'never'
+      params.sandbox = 'danger-full-access'
     }
     const payload = await callRpc<ThreadStartResponse>('thread/start', params)
     const threadId = normalizeThreadIdFromPayload(payload)
@@ -1842,6 +1851,7 @@ export async function startThreadTurn(
   skills?: Array<{ name: string; path: string }>,
   fileAttachments: FileAttachmentParam[] = [],
   collaborationMode?: CollaborationModeKind,
+  permissionMode: ThreadPermissionMode = 'default',
 ): Promise<string> {
   try {
     const normalizedModel = model?.trim() ?? ''
@@ -1904,6 +1914,10 @@ export async function startThreadTurn(
           developer_instructions: null,
         },
       }
+    }
+    if (permissionMode === 'full-access') {
+      params.approvalPolicy = 'never'
+      params.sandboxPolicy = { type: 'dangerFullAccess' }
     }
     const payload = await callRpc<{ turn?: Turn }>('turn/start', params)
     return typeof payload?.turn?.id === 'string' ? payload.turn.id.trim() : ''

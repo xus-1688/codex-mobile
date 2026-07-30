@@ -259,6 +259,16 @@
         <template v-if="!isDictationRecording">
           <ComposerDropdown
             class="thread-composer-control"
+            :model-value="selectedPermissionMode"
+            :options="permissionOptions"
+            :placeholder="t('Permissions')"
+            open-direction="up"
+            :disabled="isComposerConfigDisabled"
+            @update:model-value="onPermissionModeSelect"
+          />
+
+          <ComposerDropdown
+            class="thread-composer-control"
             :model-value="selectedModel"
             :options="modelOptions"
             :selected-prefix-icon="showFastModeModelIcon ? IconTablerBolt : null"
@@ -396,6 +406,7 @@ import type {
   CollaborationModeOption,
   ReasoningEffort,
   SpeedMode,
+  ThreadPermissionMode,
   UiRateLimitSnapshot,
   UiRateLimitWindow,
   UiThreadTokenUsage,
@@ -437,6 +448,7 @@ const props = defineProps<{
   cwd?: string
   collaborationModes?: CollaborationModeOption[]
   selectedCollaborationMode: CollaborationModeKind
+  selectedPermissionMode: ThreadPermissionMode
   models: string[]
   selectedModel: string
   selectedReasoningEffort: ReasoningEffort | ''
@@ -484,6 +496,7 @@ const emit = defineEmits<{
   submit: [payload: SubmitPayload]
   interrupt: []
   'update:selected-collaboration-mode': [mode: CollaborationModeKind]
+  'update:selected-permission-mode': [mode: ThreadPermissionMode]
   'update:selected-model': [modelId: string]
   'update:selected-reasoning-effort': [effort: ReasoningEffort | '']
   'update:selected-speed-mode': [mode: SpeedMode]
@@ -600,6 +613,10 @@ function formatModelLabel(modelId: string): string {
 const modelOptions = computed(() =>
   props.models.map((modelId) => ({ value: modelId, label: formatModelLabel(modelId) })),
 )
+const permissionOptions = computed<Array<{ value: ThreadPermissionMode; label: string }>>(() => [
+  { value: 'default', label: t('Default permissions') },
+  { value: 'full-access', label: t('Full access') },
+])
 const isPlanModeSelected = computed(() => props.selectedCollaborationMode === 'plan')
 
 const isPlanModeWaitingForModel = computed(() =>
@@ -977,6 +994,10 @@ function onSubmit(mode: 'steer' | 'queue' = 'steer'): void {
 
 function setActiveInProgressMode(mode: 'steer' | 'queue'): void {
   activeInProgressMode.value = mode
+}
+
+function onPermissionModeSelect(value: string): void {
+  emit('update:selected-permission-mode', value === 'full-access' ? 'full-access' : 'default')
 }
 
 function replaceDraftState(payload: ComposerDraftPayload): void {

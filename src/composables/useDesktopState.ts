@@ -46,6 +46,7 @@ import type {
   UiPendingRequestState,
   ReasoningEffort,
   SpeedMode,
+  ThreadPermissionMode,
   UiFileChange,
   UiLiveOverlay,
   UiMessage,
@@ -81,6 +82,7 @@ const LEGACY_SELECTED_MODEL_STORAGE_KEY = 'codex-web-local.selected-model-id.v1'
 const PROJECT_ORDER_STORAGE_KEY = 'codex-web-local.project-order.v1'
 const PROJECT_DISPLAY_NAME_STORAGE_KEY = 'codex-web-local.project-display-name.v1'
 const COLLABORATION_MODE_STORAGE_KEY = 'codex-web-local.collaboration-mode-by-context.v1'
+const THREAD_PERMISSION_MODE_STORAGE_KEY = 'codex-web-local.thread-permission-mode-by-context.v1'
 const LEGACY_COLLABORATION_MODE_STORAGE_KEY = 'codex-web-local.collaboration-mode.v1'
 const NEW_THREAD_COLLABORATION_MODE_CONTEXT = '__new-thread__'
 const NEW_THREAD_PROVIDER_MODEL_CONTEXT_PREFIX = '__new-thread-provider__::'
@@ -164,6 +166,10 @@ export function isThreadUnreadByLastRead(
 
 function normalizeCollaborationMode(value: unknown): CollaborationModeKind {
   return value === 'plan' ? 'plan' : 'default'
+}
+
+function normalizeThreadPermissionMode(value: unknown): ThreadPermissionMode {
+  return value === 'full-access' ? 'full-access' : 'default'
 }
 
 function normalizeStoredModelId(value: unknown): string {
@@ -353,6 +359,64 @@ function saveSelectedCollaborationModeMap(state: Record<string, CollaborationMod
     window.localStorage.removeItem(LEGACY_COLLABORATION_MODE_STORAGE_KEY)
   } catch {
     // Keep in-memory mode selection working even if localStorage writes fail.
+  }
+}
+
+function loadThreadPermissionModeMap(): Record<string, ThreadPermissionMode> {
+  if (typeof window === 'undefined') return createStringKeyedRecord<ThreadPermissionMode>()
+
+  try {
+    const raw = window.localStorage.getItem(THREAD_PERMISSION_MODE_STORAGE_KEY)
+    if (!raw) return createStringKeyedRecord<ThreadPermissionMode>()
+    const parsed = JSON.parse(raw) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return createStringKeyedRecord<ThreadPermissionMode>()
+    }
+
+    const next = createStringKeyedRecord<ThreadPermissionMode>()
+    for (const [contextId, value] of Object.entries(parsed as Record<string, unknown>)) {
+      if (typeof contextId !== 'string' || contextId.length === 0) continue
+      if (normalizeThreadPermissionMode(value) === 'full-access') {
+        next[contextId] = 'full-access'
+      }
+    }
+    return next
+  } catch {
+    return createStringKeyedRecord<ThreadPermissionMode>()
+  }
+}
+
+function readThreadPermissionMode(
+  state: Record<string, ThreadPermissionMode>,
+  threadId: string,
+): ThreadPermissionMode {
+  return normalizeThreadPermissionMode(state[toThreadContextId(threadId)])
+}
+
+function writeThreadPermissionModeForContext(
+  state: Record<string, ThreadPermissionMode>,
+  threadId: string,
+  mode: ThreadPermissionMode,
+): Record<string, ThreadPermissionMode> {
+  const contextId = toThreadContextId(threadId)
+  if (isNewThreadContextId(contextId) || mode === 'default') {
+    return omitStringKeyedRecordKey(state, contextId)
+  }
+  const next = cloneStringKeyedRecord(state)
+  next[contextId] = 'full-access'
+  return next
+}
+
+function saveThreadPermissionModeMap(state: Record<string, ThreadPermissionMode>): void {
+  if (typeof window === 'undefined') return
+  try {
+    if (Object.keys(state).length === 0) {
+      window.localStorage.removeItem(THREAD_PERMISSION_MODE_STORAGE_KEY)
+    } else {
+      window.localStorage.setItem(THREAD_PERMISSION_MODE_STORAGE_KEY, JSON.stringify(state))
+    }
+  } catch {
+    // Keep in-memory selection working even if localStorage writes fail.
   }
 }
 
@@ -1430,9 +1494,15 @@ export function useDesktopState() {
   const selectedCollaborationModeByContext = ref<Record<string, CollaborationModeKind>>(
     loadSelectedCollaborationModeMap(),
   )
+  const threadPermissionModeByContext = ref<Record<string, ThreadPermissionMode>>(
+    loadThreadPermissionModeMap(),
+  )
   const selectedModelIdByContext = ref<Record<string, string>>(loadSelectedModelMap())
   const selectedCollaborationMode = ref<CollaborationModeKind>(
     readSelectedCollaborationMode(selectedCollaborationModeByContext.value, selectedThreadId.value),
+  )
+  const selectedThreadPermissionMode = ref<ThreadPermissionMode>(
+    readThreadPermissionMode(threadPermissionModeByContext.value, selectedThreadId.value),
   )
   const selectedModelId = ref(readSelectedModel(selectedModelIdByContext.value, selectedThreadId.value))
   const selectedReasoningEffort = ref<ReasoningEffort | ''>('medium')
@@ -1685,6 +1755,10 @@ export function useDesktopState() {
       selectedCollaborationModeByContext.value,
       nextThreadId,
     )
+    selectedThreadPermissionMode.value = readThreadPermissionMode(
+      threadPermissionModeByContext.value,
+      nextThreadId,
+    )
     activeReasoningItemId = ''
     shouldAutoScrollOnNextAgentEvent = false
   }
@@ -1824,6 +1898,32 @@ export function useDesktopState() {
     saveSelectedCollaborationModeMap(selectedCollaborationModeByContext.value)
   }
 
+  function setSelectedThreadPermissionMode(mode: ThreadPermissionMode): void {
+    const nextMode = normalizeThreadPermissionMode(mode)
+    const contextId = toThreadContextId(selectedThreadId.value)
+    if (selectedThreadPermissionMode.value === nextMode) return
+    selectedThreadPermissionMode.value = nextMode
+    threadPermissionModeByContext.value = writeThreadPermissionModeForContext(
+      threadPermissionModeByContext.value,
+      contextId,
+      nextMode,
+    )
+    saveThreadPermissionModeMap(threadPermissionModeByContext.value)
+  }
+
+  function setThreadPermissionMode(threadId: string, mode: ThreadPermissionMode): void {
+    const nextMode = normalizeThreadPermissionMode(mode)
+    threadPermissionModeByContext.value = writeThreadPermissionModeForContext(
+      threadPermissionModeByContext.value,
+      threadId,
+      nextMode,
+    )
+    if (threadId.trim() === selectedThreadId.value) {
+      selectedThreadPermissionMode.value = nextMode
+    }
+    saveThreadPermissionModeMap(threadPermissionModeByContext.value)
+  }
+
   function setCodexRateLimit(nextSnapshot: UiRateLimitSnapshot | null): void {
     codexRateLimit.value = nextSnapshot
   }
@@ -1909,6 +2009,7 @@ export function useDesktopState() {
         pending.skills.length > 0 ? pending.skills : undefined,
         pending.fileAttachments,
         pending.collaborationMode,
+        readThreadPermissionMode(threadPermissionModeByContext.value, threadId),
       )
 
       scheduleRateLimitRefresh()
@@ -2242,6 +2343,18 @@ export function useDesktopState() {
         selectedThreadId.value,
       )
       saveSelectedCollaborationModeMap(nextSelectedCollaborationModeMap)
+    }
+    const nextThreadPermissionModeMap = pruneThreadContextStateMap(
+      threadPermissionModeByContext.value,
+      activeThreadIds,
+    )
+    if (nextThreadPermissionModeMap !== threadPermissionModeByContext.value) {
+      threadPermissionModeByContext.value = nextThreadPermissionModeMap
+      selectedThreadPermissionMode.value = readThreadPermissionMode(
+        nextThreadPermissionModeMap,
+        selectedThreadId.value,
+      )
+      saveThreadPermissionModeMap(nextThreadPermissionModeMap)
     }
     const nextReadState = pruneThreadStateMap(readStateByThreadId.value, activeThreadIds)
     if (nextReadState !== readStateByThreadId.value) {
@@ -4956,6 +5069,7 @@ export function useDesktopState() {
     const targetCwd = cwd.trim()
     const selectedModel = readModelIdForThread(NEW_THREAD_COLLABORATION_MODE_CONTEXT).trim()
     const selectedMode = selectedCollaborationMode.value
+    const selectedPermissionMode = selectedThreadPermissionMode.value
     if (!nextText && imageUrls.length === 0 && fileAttachments.length === 0) return ''
 
     isSendingMessage.value = true
@@ -4964,19 +5078,29 @@ export function useDesktopState() {
 
     try {
       try {
-        const startedThread = await startThread(targetCwd || undefined, selectedModel || undefined)
+        const startedThread = await startThread(
+          targetCwd || undefined,
+          selectedModel || undefined,
+          selectedPermissionMode,
+        )
         threadId = startedThread.threadId
         setThreadModelId(threadId, startedThread.model)
         setThreadModelProviderId(threadId, startedThread.modelProvider || activeProviderId.value)
         setSelectedCollaborationModeForThread(threadId, selectedMode)
+        setThreadPermissionMode(threadId, selectedPermissionMode)
       } catch (unknownError) {
         if (selectedModel && selectedModel !== MODEL_FALLBACK_ID && isUnsupportedChatGptModelError(unknownError)) {
           await applyFallbackModelSelection()
-          const fallbackThread = await startThread(targetCwd || undefined, MODEL_FALLBACK_ID)
+          const fallbackThread = await startThread(
+            targetCwd || undefined,
+            MODEL_FALLBACK_ID,
+            selectedPermissionMode,
+          )
           threadId = fallbackThread.threadId
           setThreadModelId(threadId, fallbackThread.model)
           setThreadModelProviderId(threadId, fallbackThread.modelProvider || activeProviderId.value)
           setSelectedCollaborationModeForThread(threadId, selectedMode)
+          setThreadPermissionMode(threadId, selectedPermissionMode)
         } else {
           throw unknownError
         }
@@ -5102,6 +5226,7 @@ export function useDesktopState() {
           skills.length > 0 ? skills : undefined,
           fileAttachments,
           collaborationMode,
+          readThreadPermissionMode(threadPermissionModeByContext.value, threadId),
         )
       } catch (unknownError) {
         if (modelId && modelId !== MODEL_FALLBACK_ID && isUnsupportedChatGptModelError(unknownError)) {
@@ -5124,6 +5249,7 @@ export function useDesktopState() {
             skills.length > 0 ? skills : undefined,
             fileAttachments,
             collaborationMode,
+            readThreadPermissionMode(threadPermissionModeByContext.value, threadId),
           )
         } else {
           throw unknownError
@@ -5675,6 +5801,7 @@ export function useDesktopState() {
     availableCollaborationModes,
     availableModelIds,
     selectedCollaborationMode,
+    selectedThreadPermissionMode,
     selectedModelId,
     selectedReasoningEffort,
     selectedSpeedMode,
@@ -5715,6 +5842,7 @@ export function useDesktopState() {
     reorderQueuedMessage,
     steerQueuedMessage,
     setSelectedCollaborationMode,
+    setSelectedThreadPermissionMode,
     readModelIdForThread,
     setSelectedModelIdForThread,
     setSelectedModelId,
