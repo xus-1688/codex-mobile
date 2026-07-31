@@ -673,12 +673,16 @@
   @apply bg-zinc-800/80 text-zinc-300;
 }
 
-:root.dark .message-copy-button {
+:root.dark .message-toolbar .message-copy-button {
   @apply border-zinc-700 bg-zinc-800/90 text-zinc-300 hover:border-zinc-600 hover:bg-zinc-800 hover:text-zinc-100;
 }
 
-:root.dark .message-copy-button[data-copied='true'] {
+:root.dark .message-toolbar .message-copy-button[data-copy-state='copied'] {
   @apply border-emerald-500/40 bg-emerald-500/10 text-emerald-200;
+}
+
+:root.dark .message-toolbar .message-copy-button[data-copy-state='failed'] {
+  @apply border-rose-500/40 bg-rose-500/10 text-rose-200;
 }
 
 :root.dark .message-rollback-button {
