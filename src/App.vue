@@ -1067,7 +1067,7 @@
   <LocalSessionImportDialog
     v-if="isLocalSessionImportOpen"
     :threads="localSessionCandidates"
-    :selected-thread-ids="importedLocalThreadIds"
+    :imported-thread-ids="importedLocalThreadIds"
     :is-loading="isLoadingLocalSessions"
     :error="localSessionImportError"
     @close="onCloseLocalSessionImport"
@@ -1194,6 +1194,7 @@ import SidebarThreadTree from './components/sidebar/SidebarThreadTree.vue'
 import ContentHeader from './components/content/ContentHeader.vue'
 import ThreadComposer from './components/content/ThreadComposer.vue'
 import LocalSessionImportDialog from './components/content/LocalSessionImportDialog.vue'
+import { mergeImportedLocalThreadIds } from './components/content/localSessionImportUtils'
 import ThreadPendingRequestPanel from './components/content/ThreadPendingRequestPanel.vue'
 import QueuedMessages from './components/content/QueuedMessages.vue'
 import RateLimitStatus from './components/content/RateLimitStatus.vue'
@@ -4207,7 +4208,7 @@ function onCloseLocalSessionImport(): void {
 }
 
 function onConfirmLocalSessionImport(threadIds: string[]): void {
-  setImportedLocalThreadIds(threadIds)
+  setImportedLocalThreadIds(mergeImportedLocalThreadIds(importedLocalThreadIds.value, threadIds))
   isLocalSessionImportOpen.value = false
 }
 

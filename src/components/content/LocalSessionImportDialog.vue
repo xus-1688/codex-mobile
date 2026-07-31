@@ -10,7 +10,7 @@
       <header class="local-session-import-header">
         <div class="local-session-import-heading">
           <h2>{{ t('Import local sessions') }}</h2>
-          <p>{{ threads.length }} {{ t('sessions on this computer') }}</p>
+          <p>{{ importableThreads.length }} {{ t('sessions available to import') }}</p>
         </div>
         <button class="local-session-import-close" type="button" :aria-label="t('Close')" @click="onClose">
           <IconTablerX />
@@ -42,7 +42,7 @@
         </div>
 
         <div v-if="filteredThreads.length === 0" class="local-session-import-empty">
-          {{ t('No local sessions found') }}
+          {{ emptyStateText }}
         </div>
         <div v-else class="local-session-import-list">
           <label v-for="thread in visibleThreads" :key="thread.id" class="local-session-import-row">
@@ -54,9 +54,6 @@
                 <time :datetime="thread.updatedAtIso">{{ formatUpdatedAt(thread.updatedAtIso) }}</time>
               </span>
               <span class="local-session-import-row-path" :title="thread.cwd">{{ thread.cwd }}</span>
-            </span>
-            <span v-if="initialSelectedIds.has(thread.id)" class="local-session-import-status">
-              {{ t('Imported') }}
             </span>
           </label>
           <button
@@ -71,7 +68,12 @@
 
         <footer class="local-session-import-actions">
           <button type="button" class="local-session-import-cancel" @click="onClose">{{ t('Cancel') }}</button>
-          <button type="button" class="local-session-import-confirm" @click="confirmSelection">
+          <button
+            type="button"
+            class="local-session-import-confirm"
+            :disabled="selectedIds.size === 0"
+            @click="confirmSelection"
+          >
             {{ t('Import') }} {{ selectedIds.size }}
           </button>
         </footer>
@@ -84,6 +86,7 @@
 import { computed, ref, watch } from 'vue'
 import type { UiThread } from '../../types/codex'
 import { useUiLanguage } from '../../composables/useUiLanguage'
+import { filterUnimportedLocalSessions } from './localSessionImportUtils'
 import IconTablerRefresh from '../icons/IconTablerRefresh.vue'
 import IconTablerSearch from '../icons/IconTablerSearch.vue'
 import IconTablerX from '../icons/IconTablerX.vue'
@@ -92,7 +95,7 @@ const PAGE_SIZE = 60
 
 const props = defineProps<{
   threads: UiThread[]
-  selectedThreadIds: string[]
+  importedThreadIds: string[]
   isLoading: boolean
   error: string
 }>()
@@ -106,13 +109,15 @@ const emit = defineEmits<{
 const { t } = useUiLanguage()
 const query = ref('')
 const visibleCount = ref(PAGE_SIZE)
-const initialSelectedIds = new Set(props.selectedThreadIds)
-const selectedIds = ref(new Set(props.selectedThreadIds))
+const selectedIds = ref(new Set<string>())
+const importableThreads = computed(() => (
+  filterUnimportedLocalSessions(props.threads, props.importedThreadIds)
+))
 
 const filteredThreads = computed(() => {
   const normalizedQuery = query.value.trim().toLocaleLowerCase()
-  if (!normalizedQuery) return props.threads
-  return props.threads.filter((thread) => (
+  if (!normalizedQuery) return importableThreads.value
+  return importableThreads.value.filter((thread) => (
     thread.title.toLocaleLowerCase().includes(normalizedQuery)
     || thread.projectName.toLocaleLowerCase().includes(normalizedQuery)
     || thread.cwd.toLocaleLowerCase().includes(normalizedQuery)
@@ -122,6 +127,11 @@ const visibleThreads = computed(() => filteredThreads.value.slice(0, visibleCoun
 const allFilteredSelected = computed(() => (
   filteredThreads.value.length > 0
   && filteredThreads.value.every((thread) => selectedIds.value.has(thread.id))
+))
+const emptyStateText = computed(() => (
+  importableThreads.value.length === 0 && props.threads.length > 0
+    ? t('All local sessions are already imported')
+    : t('No local sessions found')
 ))
 
 watch(query, () => {

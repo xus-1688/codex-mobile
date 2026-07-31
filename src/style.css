@@ -1966,7 +1966,7 @@
 }
 
 .local-session-import-row {
-  @apply grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-3 border-b border-zinc-100 px-3 py-3 transition last:border-b-0 hover:bg-zinc-50;
+  @apply grid cursor-pointer grid-cols-[auto_minmax(0,1fr)] items-start gap-3 border-b border-zinc-100 px-3 py-3 transition last:border-b-0 hover:bg-zinc-50;
 }
 
 .local-session-import-row > input {
@@ -1997,10 +1997,6 @@
   @apply overflow-hidden text-ellipsis whitespace-nowrap text-xs text-zinc-400;
 }
 
-.local-session-import-status {
-  @apply rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] font-medium text-zinc-600;
-}
-
 .local-session-import-more {
   @apply w-full border-t border-zinc-100 bg-white px-3 py-2.5 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900;
 }
@@ -2020,6 +2016,10 @@
 
 .local-session-import-confirm {
   @apply border-zinc-900 bg-zinc-900 text-white hover:bg-zinc-800;
+}
+
+.local-session-import-confirm:disabled {
+  @apply cursor-not-allowed opacity-50;
 }
 
 :root.dark .local-session-import-dialog,
@@ -2062,10 +2062,6 @@
 :root.dark .local-session-import-cancel:hover,
 :root.dark .local-session-import-close:hover {
   @apply bg-zinc-800;
-}
-
-:root.dark .local-session-import-status {
-  @apply bg-zinc-800 text-zinc-300;
 }
 
 :root.dark .local-session-import-confirm {
