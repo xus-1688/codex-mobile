@@ -31,8 +31,8 @@ function run(command, args, options = {}) {
 }
 
 const passthroughArgs = process.argv.slice(2)
-const viteBinPath = join(process.cwd(), 'node_modules', '.bin', process.platform === 'win32' ? 'vite.cmd' : 'vite')
-const vueTscBinPath = join(process.cwd(), 'node_modules', '.bin', process.platform === 'win32' ? 'vue-tsc.cmd' : 'vue-tsc')
+const viteBinPath = join(process.cwd(), 'node_modules', 'vite', 'bin', 'vite.js')
+const vueTscBinPath = join(process.cwd(), 'node_modules', 'vue-tsc', 'bin', 'vue-tsc.js')
 
 if (isAndroidRuntime()) {
   const cliPath = join(process.cwd(), 'dist-cli', 'index.js')
@@ -59,4 +59,4 @@ if (!existsSync(viteBinPath) || !existsSync(vueTscBinPath)) {
   }
 }
 
-run(viteBinPath, passthroughArgs)
+run(process.execPath, [viteBinPath, ...passthroughArgs])
