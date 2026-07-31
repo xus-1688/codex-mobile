@@ -38,6 +38,10 @@
     >
       <IconTablerFilePencil class="sidebar-thread-controls-icon" />
     </button>
+
+    <span v-if="systemName" class="sidebar-system-name" :title="systemName">
+      {{ systemName }}
+    </span>
   </div>
 </template>
 
@@ -53,6 +57,7 @@ defineProps<{
   showNewThreadButton?: boolean
   showLocalSessionImportButton?: boolean
   isLoadingLocalSessions?: boolean
+  systemName?: string
 }>()
 
 defineEmits<{
@@ -68,11 +73,11 @@ const { t } = useUiLanguage()
 @reference "tailwindcss";
 
 .sidebar-thread-controls {
-  @apply flex flex-row flex-nowrap items-center gap-2;
+  @apply flex min-w-0 flex-row flex-nowrap items-center gap-1.5;
 }
 
 .sidebar-thread-controls-button {
-  @apply h-6.75 w-6.75 rounded-md border border-transparent bg-transparent text-zinc-600 flex items-center justify-center transition hover:border-zinc-200 hover:bg-zinc-50;
+  @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent text-zinc-600 transition hover:border-zinc-200 hover:bg-zinc-50;
 }
 
 .sidebar-thread-controls-button:disabled {
@@ -80,7 +85,11 @@ const { t } = useUiLanguage()
 }
 
 .sidebar-thread-controls-icon {
-  @apply w-4 h-4;
+  @apply h-4.5 w-4.5;
+}
+
+.sidebar-system-name {
+  @apply ml-auto min-w-0 flex-1 truncate text-right text-xs font-semibold text-zinc-700;
 }
 
 .sidebar-thread-controls-icon--spinning {
@@ -90,6 +99,20 @@ const { t } = useUiLanguage()
 @keyframes sidebar-thread-controls-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 767px) {
+  .sidebar-thread-controls {
+    @apply gap-1;
+  }
+
+  .sidebar-thread-controls-button {
+    @apply h-11 w-11 rounded-lg;
+  }
+
+  .sidebar-thread-controls-icon {
+    @apply h-5 w-5;
   }
 }
 </style>

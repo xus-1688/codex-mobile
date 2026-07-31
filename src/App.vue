@@ -14,6 +14,7 @@
             :show-new-thread-button="true"
             :show-local-session-import-button="true"
             :is-loading-local-sessions="isLoadingLocalSessions"
+            :system-name="systemName"
             @toggle-sidebar="setSidebarCollapsed(!isSidebarCollapsed)"
             @start-new-thread="onStartNewThreadFromToolbar"
             @load-local-sessions="onOpenLocalSessionImport"
@@ -56,7 +57,7 @@
             class="sidebar-skills-link"
             :class="{ 'is-active': isSkillsRoute }"
             type="button"
-            @click="router.push({ name: 'skills' }); isMobile && setSidebarCollapsed(true)"
+            @click="router.push({ name: 'skills' }); isMobile && setSidebarCollapsed(true, false)"
           >
             <span class="sidebar-skills-link-icon" aria-hidden="true">
               <IconTablerBolt />
@@ -72,7 +73,7 @@
             class="sidebar-skills-link"
             :class="{ 'is-active': isAutomationsRoute }"
             type="button"
-            @click="router.push({ name: 'automations' }); isMobile && setSidebarCollapsed(true)"
+            @click="router.push({ name: 'automations' }); isMobile && setSidebarCollapsed(true, false)"
           >
             <span class="sidebar-skills-link-icon sidebar-automations-link-icon" aria-hidden="true">
               <IconTablerBolt />
@@ -236,6 +237,18 @@
                 <span class="sidebar-settings-label">{{ t('Appearance') }}</span>
                 <span class="sidebar-settings-value">{{ darkMode === 'system' ? t('System') : darkMode === 'dark' ? t('Dark') : t('Light') }}</span>
               </button>
+              <label class="sidebar-settings-row sidebar-settings-row--system-name" :title="t('Name shown in the sidebar and browser tab.')">
+                <span class="sidebar-settings-label">{{ t('System name') }}</span>
+                <input
+                  class="sidebar-settings-input sidebar-settings-system-name-input"
+                  type="text"
+                  :value="systemNameDraft"
+                  :maxlength="SYSTEM_NAME_MAX_LENGTH"
+                  :placeholder="DEFAULT_SYSTEM_NAME"
+                  :aria-label="t('System name')"
+                  @input="onSystemNameInput"
+                />
+              </label>
               <div class="sidebar-settings-row sidebar-settings-row--select" :title="t('Choose the interface language for the app.')">
                 <span class="sidebar-settings-label">{{ t('UI language') }}</span>
                 <ComposerDropdown
@@ -1210,6 +1223,7 @@ import IconTablerX from './components/icons/IconTablerX.vue'
 import { useDesktopState } from './composables/useDesktopState'
 import { useMobile } from './composables/useMobile'
 import { useUiLanguage } from './composables/useUiLanguage'
+import { DEFAULT_SYSTEM_NAME, SYSTEM_NAME_MAX_LENGTH, useSystemName } from './composables/useSystemName'
 import { useFeedbackDiagnostics } from './composables/useFeedbackDiagnostics'
 import {
   checkoutGitBranch,
@@ -1260,8 +1274,10 @@ const ReviewPane = defineAsyncComponent(() => import('./components/content/Revie
 const DirectoryHub = defineAsyncComponent(() => import('./components/content/DirectoryHub.vue'))
 const AutomationsPanel = defineAsyncComponent(() => import('./components/content/AutomationsPanel.vue'))
 const { t, uiLanguage, uiLanguageOptions, setUiLanguage } = useUiLanguage()
+const { systemName, systemNameDraft, setSystemName } = useSystemName()
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-web-local.sidebar-collapsed.v1'
+const MOBILE_SIDEBAR_COLLAPSED_STORAGE_KEY = 'codex-web-local.mobile-sidebar-collapsed.v1'
 const ACCOUNTS_SECTION_COLLAPSED_STORAGE_KEY = 'codex-web-local.accounts-section-collapsed.v1'
 const TERMINAL_QUICK_COMMAND_STORAGE_KEY = 'codex-web-local.terminal-quick-commands.v1'
 const TOGGLE_TERMINAL_COMMAND_VALUE = '__toggle_terminal__'
@@ -1574,7 +1590,7 @@ const worktreeInitStatus = ref<{ phase: 'idle' | 'running' | 'error'; title: str
   title: '',
   message: '',
 })
-const isSidebarCollapsed = ref(loadSidebarCollapsed())
+const isSidebarCollapsed = ref(loadSidebarCollapsed(isMobile.value))
 const sidebarSearchQuery = ref('')
 const isSidebarSearchVisible = ref(false)
 const sidebarScrollableRef = ref<HTMLElement | null>(null)
@@ -1778,7 +1794,7 @@ const browserHostName =
     : 'codexui'
 const pageTitle = computed(() => {
   const threadTitle = selectedThread.value?.title?.trim() ?? ''
-  return threadTitle || browserHostName
+  return threadTitle || systemName.value || browserHostName
 })
 const filteredMessages = computed(() =>
   messages.value.filter((message) => {
@@ -2449,7 +2465,7 @@ function onSelectThread(threadId: string): void {
   if (!threadId) return
   if (route.name === 'thread' && routeThreadId.value === threadId) return
   void router.push({ name: 'thread', params: { threadId } })
-  if (isMobile.value) setSidebarCollapsed(true)
+  if (isMobile.value) setSidebarCollapsed(true, false)
 }
 
 function onSelectAutomationInPanel(automationId: string): void {
@@ -2780,7 +2796,7 @@ async function onForkThread(threadId: string): Promise<void> {
   } else {
     await router.replace({ name: 'thread', params: { threadId: nextThreadId } })
   }
-  if (isMobile.value) setSidebarCollapsed(true)
+  if (isMobile.value) setSidebarCollapsed(true, false)
 }
 
 function isWorktreePath(cwdRaw: string): boolean {
@@ -2803,7 +2819,7 @@ function onStartNewThread(projectName: string): void {
   if (projectCwd) {
     newThreadCwd.value = projectCwd
   }
-  if (isMobile.value) setSidebarCollapsed(true)
+  if (isMobile.value) setSidebarCollapsed(true, false)
   if (isHomeRoute.value) return
   void router.push({ name: 'home' })
 }
@@ -2987,7 +3003,7 @@ async function onCreateProjectWorktree(projectName: string): Promise<void> {
     pinProjectToTop(getProjectOrderNameForPath(normalizedPath))
     await loadWorkspaceRootOptionsState()
     await refreshDefaultProjectName()
-    if (isMobile.value) setSidebarCollapsed(true)
+    if (isMobile.value) setSidebarCollapsed(true, false)
     if (!isHomeRoute.value) {
       await router.push({ name: 'home' })
     }
@@ -3011,7 +3027,7 @@ function onStartNewThreadFromToolbar(): void {
     newThreadCwd.value = resolvedCwd
   }
   newThreadRuntime.value = 'local'
-  if (isMobile.value) setSidebarCollapsed(true)
+  if (isMobile.value) setSidebarCollapsed(true, false)
   if (isHomeRoute.value) return
   void router.push({ name: 'home' })
 }
@@ -3019,7 +3035,7 @@ function onStartNewThreadFromToolbar(): void {
 function onStartProjectlessNewChat(): void {
   newThreadCwd.value = ''
   newThreadRuntime.value = 'local'
-  if (isMobile.value) setSidebarCollapsed(true)
+  if (isMobile.value) setSidebarCollapsed(true, false)
   if (isHomeRoute.value) return
   void router.push({ name: 'home' })
 }
@@ -3103,10 +3119,10 @@ async function onForkThreadFromMessage(payload: { threadId: string; turnIndex: n
   if (selectedThreadId.value !== forkedThreadId) {
     await selectThread(forkedThreadId)
   }
-  if (isMobile.value) setSidebarCollapsed(true)
+  if (isMobile.value) setSidebarCollapsed(true, false)
 }
 
-function setSidebarCollapsed(nextValue: boolean): void {
+function setSidebarCollapsed(nextValue: boolean, persist = true): void {
   if (isSidebarCollapsed.value === nextValue) return
   if (nextValue) {
     const currentScrollTop = getSidebarScrollableElement()?.scrollTop
@@ -3115,7 +3131,7 @@ function setSidebarCollapsed(nextValue: boolean): void {
     }
   }
   isSidebarCollapsed.value = nextValue
-  saveSidebarCollapsed(nextValue)
+  if (persist) saveSidebarCollapsed(nextValue, isMobile.value)
   if (!nextValue) {
     restoreSidebarScrollPosition()
   }
@@ -4352,6 +4368,12 @@ function loadChatWidthPref(): ChatWidthMode {
   return value === 'standard' || value === 'wide' || value === 'extra-wide' ? value : 'standard'
 }
 
+function onSystemNameInput(event: Event): void {
+  const input = event.currentTarget
+  if (!(input instanceof HTMLInputElement)) return
+  setSystemName(input.value)
+}
+
 function toggleSendWithEnter(): void {
   sendWithEnter.value = !sendWithEnter.value
   window.localStorage.setItem(SEND_WITH_ENTER_KEY, sendWithEnter.value ? '1' : '0')
@@ -4641,14 +4663,16 @@ function applyDarkMode(): void {
   }
 }
 
-function loadSidebarCollapsed(): boolean {
+function loadSidebarCollapsed(mobile = false): boolean {
   if (typeof window === 'undefined') return false
-  return window.localStorage.getItem(SIDEBAR_COLLAPSED_STORAGE_KEY) === '1'
+  const storageKey = mobile ? MOBILE_SIDEBAR_COLLAPSED_STORAGE_KEY : SIDEBAR_COLLAPSED_STORAGE_KEY
+  return window.localStorage.getItem(storageKey) === '1'
 }
 
-function saveSidebarCollapsed(value: boolean): void {
+function saveSidebarCollapsed(value: boolean, mobile = false): void {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(SIDEBAR_COLLAPSED_STORAGE_KEY, value ? '1' : '0')
+  const storageKey = mobile ? MOBILE_SIDEBAR_COLLAPSED_STORAGE_KEY : SIDEBAR_COLLAPSED_STORAGE_KEY
+  window.localStorage.setItem(storageKey, value ? '1' : '0')
 }
 
 function loadAccountsSectionCollapsed(): boolean {
@@ -4921,11 +4945,10 @@ watch(
 )
 
 
-watch(isMobile, (mobile) => {
-  if (mobile && !isSidebarCollapsed.value) {
-    setSidebarCollapsed(true)
-  }
-}, { immediate: true })
+watch(isMobile, (mobile, previousMobile) => {
+  if (mobile === previousMobile) return
+  setSidebarCollapsed(loadSidebarCollapsed(mobile), false)
+})
 
 async function submitFirstMessageForNewThread(
   text: string,
@@ -5066,7 +5089,7 @@ async function loadWorktreeBranches(sourceCwd: string): Promise<void> {
 }
 
 .sidebar-search-toggle {
-  @apply h-6.75 w-6.75 rounded-md border border-transparent bg-transparent text-zinc-600 flex items-center justify-center transition hover:border-zinc-200 hover:bg-zinc-50;
+  @apply flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-transparent bg-transparent text-zinc-600 transition hover:border-zinc-200 hover:bg-zinc-50;
 }
 
 .sidebar-search-toggle[aria-pressed='true'] {
@@ -5074,7 +5097,7 @@ async function loadWorktreeBranches(sourceCwd: string): Promise<void> {
 }
 
 .sidebar-search-toggle-icon {
-  @apply w-4 h-4;
+  @apply h-4.5 w-4.5;
 }
 
 .sidebar-search-bar {
@@ -5131,6 +5154,16 @@ async function loadWorktreeBranches(sourceCwd: string): Promise<void> {
 
 .sidebar-thread-controls-header-host {
   @apply ml-1;
+}
+
+@media (max-width: 767px) {
+  .sidebar-search-toggle {
+    @apply h-11 w-11 rounded-lg;
+  }
+
+  .sidebar-search-toggle-icon {
+    @apply h-5 w-5;
+  }
 }
 
 .skills-route-header-icon {
@@ -5660,6 +5693,14 @@ async function loadWorktreeBranches(sourceCwd: string): Promise<void> {
 
 .sidebar-settings-row--select {
   @apply cursor-default items-center gap-2;
+}
+
+.sidebar-settings-row--system-name {
+  @apply cursor-text flex-col items-stretch gap-1.5;
+}
+
+.sidebar-settings-system-name-input {
+  @apply min-w-0;
 }
 
 .sidebar-settings-language-dropdown {

@@ -43,6 +43,8 @@ const zhCN: Record<string, string> = {
   'Steer': '引导',
   'Queue': '排队',
   'Appearance': '外观',
+  'System name': '系统名称',
+  'Name shown in the sidebar and browser tab.': '显示在侧边栏和浏览器标签页中的名称。',
   'System': '跟随系统',
   'Dark': '深色',
   'Light': '浅色',

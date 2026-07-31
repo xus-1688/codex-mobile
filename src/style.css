@@ -61,6 +61,10 @@
   @apply border-zinc-700;
 }
 
+:root.dark .sidebar-settings-system-name-input {
+  @apply border-zinc-600 bg-zinc-900 text-zinc-100 placeholder-zinc-500 focus:border-zinc-500 focus:ring-zinc-700;
+}
+
 :root.dark .sidebar-settings-context-value {
   @apply text-zinc-300;
 }
@@ -351,6 +355,10 @@
 
 :root.dark .sidebar-thread-controls-button {
   @apply text-zinc-400 hover:border-zinc-600 hover:bg-zinc-800;
+}
+
+:root.dark .sidebar-system-name {
+  @apply text-zinc-200;
 }
 
 :root.dark .new-thread-hero {
