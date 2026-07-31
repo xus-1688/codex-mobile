@@ -38,7 +38,7 @@ custom-vYYYY.MM.DD.N
 
 所有部署机至少需要 Git、Node.js 18 或更高版本、pnpm，以及可用的 Codex CLI。机器还必须有权读取定制仓库；如果仓库是私有的，应提前配置 GitHub 凭据或只读 deploy key，不要把个人 token 写入仓库或升级记录。
 
-仓库当前没有声明固定的 pnpm 版本。发布负责人应选定并记录实际验证过的 Node.js 主版本和 pnpm 版本，所有同平台部署机保持一致。本文创建环境使用的是 Node.js `24.14.0` 和 pnpm `11.9.0`；这只是本次文档核对基线，不替代未来发布记录。需要本地编译 `node-pty` 的机器还应预先安装对应平台的 Python 和 C/C++ 构建工具。
+仓库通过 `packageManager` 固定 pnpm `11.9.0`，并在 `pnpm-workspace.yaml` 中明确允许已审核依赖的构建脚本。所有部署机应使用该 pnpm 版本和兼容的 Node.js 主版本；本文创建环境使用的是 Node.js `24.14.0`。需要本地编译 `node-pty` 的机器还应预先安装对应平台的 Python 和 C/C++ 构建工具。
 
 ## 3. 必须保留的内容
 
@@ -111,17 +111,13 @@ Write-Host "Release SHA: $ReleaseSha"
 git ls-files --error-unmatch pnpm-lock.yaml
 ```
 
-截至本文创建时，仓库中的 `pnpm-lock.yaml` 没有被 Git 跟踪。这意味着不同电脑分别执行 `pnpm install` 时，可能解析到不同的依赖版本。
-
-正式批量发布前，推荐先用独立提交移除 `.gitignore` 中对 `pnpm-lock.yaml` 的忽略规则，把锁文件纳入版本控制，并在部署机使用：
+`custom/main` 跟踪 `pnpm-lock.yaml`。部署机必须使用冻结安装，确保同一发布 SHA 解析到同一依赖图：
 
 ```powershell
 pnpm install --frozen-lockfile
 ```
 
-如果某个过渡版本仍未跟踪锁文件，可以执行普通 `pnpm install`，但必须在每台机器上完成构建和冒烟验证，并在发布记录中注明“依赖未完全锁定”。
-
-未跟踪的锁文件通常会被当前 `.gitignore` 忽略，所以普通安装后工作区仍可能显示为干净。该本地锁文件不能作为发布依据，也不要在机器之间手工复制。没有受版本控制的锁文件时，同一 Git SHA 只代表源码一致，不代表依赖树或构建产物一致；这种版本只适合过渡验证，不应标记为已完成一致性批量发布。
+如果旧标签尚未跟踪锁文件，只能将其视为过渡版本：普通 `pnpm install` 后必须逐机完成构建和冒烟验证，并在发布记录中注明“依赖未完全锁定”。不要把部署机生成的本地锁文件当作发布依据或在机器之间手工复制。
 
 ### 4.3 发布记录最少字段
 
