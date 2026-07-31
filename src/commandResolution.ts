@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { homedir } from 'node:os'
-import { delimiter, join } from 'node:path'
+import { delimiter, dirname, join } from 'node:path'
 
 export type CommandInvocation = {
   command: string
@@ -38,6 +38,7 @@ function getPotentialNpmPrefixes(): string[] {
   return uniqueStrings([
     process.env.npm_config_prefix,
     process.env.PREFIX,
+    process.platform === 'win32' ? dirname(process.execPath) : null,
     getUserNpmPrefix(),
     process.platform === 'win32' ? getWindowsAppDataNpmPrefix() : null,
   ])
@@ -52,37 +53,45 @@ function getPotentialCodexPackageDirs(prefix: string): string[] {
 }
 
 function getPotentialCodexExecutables(prefix: string): string[] {
-  return getPotentialCodexPackageDirs(prefix).map((packageDir) => (
-    process.platform === 'win32'
-      ? join(
-          packageDir,
-          'node_modules',
-          '@openai',
-          'codex-win32-x64',
-          'vendor',
-          'x86_64-pc-windows-msvc',
-          'codex',
-          'codex.exe',
-        )
-      : join(packageDir, 'bin', 'codex')
-  ))
+  return getPotentialCodexPackageDirs(prefix).flatMap((packageDir) => {
+    if (process.platform !== 'win32') {
+      return [join(packageDir, 'bin', 'codex')]
+    }
+
+    const vendorDir = join(
+      packageDir,
+      'node_modules',
+      '@openai',
+      'codex-win32-x64',
+      'vendor',
+      'x86_64-pc-windows-msvc',
+    )
+    return [
+      join(vendorDir, 'bin', 'codex.exe'),
+      join(vendorDir, 'codex', 'codex.exe'),
+    ]
+  })
 }
 
 function getPotentialRipgrepExecutables(prefix: string): string[] {
-  return getPotentialCodexPackageDirs(prefix).map((packageDir) => (
-    process.platform === 'win32'
-      ? join(
-          packageDir,
-          'node_modules',
-          '@openai',
-          'codex-win32-x64',
-          'vendor',
-          'x86_64-pc-windows-msvc',
-          'path',
-          'rg.exe',
-        )
-      : join(packageDir, 'bin', 'rg')
-  ))
+  return getPotentialCodexPackageDirs(prefix).flatMap((packageDir) => {
+    if (process.platform !== 'win32') {
+      return [join(packageDir, 'bin', 'rg')]
+    }
+
+    const vendorDir = join(
+      packageDir,
+      'node_modules',
+      '@openai',
+      'codex-win32-x64',
+      'vendor',
+      'x86_64-pc-windows-msvc',
+    )
+    return [
+      join(vendorDir, 'codex-path', 'rg.exe'),
+      join(vendorDir, 'path', 'rg.exe'),
+    ]
+  })
 }
 
 export function canRunCommand(command: string, args: string[] = []): boolean {
@@ -121,7 +130,7 @@ export function resolveCodexCommand(): string | null {
   const explicit = process.env.CODEXUI_CODEX_COMMAND?.trim()
   const packageCandidates = getPotentialNpmPrefixes().flatMap(getPotentialCodexExecutables)
   const fallbackCandidates = process.platform === 'win32'
-    ? [...packageCandidates, 'codex']
+    ? [...packageCandidates, 'codex.exe', 'codex']
     : ['codex', ...packageCandidates]
 
   for (const candidate of uniqueStrings([explicit, ...fallbackCandidates])) {
@@ -137,7 +146,7 @@ export function resolveRipgrepCommand(): string | null {
   const explicit = process.env.CODEXUI_RG_COMMAND?.trim()
   const packageCandidates = getPotentialNpmPrefixes().flatMap(getPotentialRipgrepExecutables)
   const fallbackCandidates = process.platform === 'win32'
-    ? [...packageCandidates, 'rg']
+    ? [...packageCandidates, 'rg.exe', 'rg']
     : ['rg', ...packageCandidates]
 
   for (const candidate of uniqueStrings([explicit, ...fallbackCandidates])) {

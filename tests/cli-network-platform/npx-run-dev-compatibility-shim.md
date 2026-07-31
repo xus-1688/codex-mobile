@@ -13,11 +13,14 @@ The accidental `npx run dev` command starts the repository dev wrapper instead o
 2. Confirm the command reaches the existing `scripts/dev.cjs` wrapper and starts Vite.
 3. Stop the dev server with Ctrl-C.
 4. Repeat with `npx run dev --host 127.0.0.1 --port 4173`.
+5. On Windows with `codex.exe` available in `PATH`, request `/codex-api/rpc` with a `thread/list` payload.
 
 #### Expected Results
 - `npx run dev` no longer fails with `Cannot find module '<repo>/dev'`.
 - The command starts the same dev server path as `npm run dev` / `pnpm run dev`.
 - Host and port arguments are passed through to Vite.
+- On Windows with Node.js 24, the wrapper starts Vite without a `.cmd` `EINVAL` error.
+- The Windows server resolves `codex.exe`, and `thread/list` does not fail with a missing Codex CLI error.
 
 #### Rollback/Cleanup
 - Stop any dev server process started for validation.
